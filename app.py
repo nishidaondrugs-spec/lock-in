@@ -322,6 +322,8 @@ def check_update(url=None, apply=False, auto=False):
 
 
 def update_loop():
+    if os.environ.get('LOCKIN_NO_UPDATE'):
+        return   # dev switch: never auto-update
     time.sleep(8)
     while True:
         try:
