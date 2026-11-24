@@ -22,3 +22,12 @@ QUICK-ADD EXAMPLES (top bar, Enter)
   every mon and wed gym 7pm   daily standup 9am   every weekday commute 8:30
   fri 3pm call X #jobs r30    film ep 22 sat 3pm?   (? = pencil it in, confirm later)
 Click a repeating event to delete just that day, that day and all after, or the whole series; pick an emoji + colour there too.
+
+POKEMON IN THE ARENA (v2.0)
+- Finishing tasks, focus sessions, clearing your Top 3 and beating bosses can bring a wild Pokemon.
+  Click "Catch" (or the Pokemon) to throw a ball - 3 tries before it flees.
+- Rare forms: shiny (about 1 in 40) and shadow (about 1 in 60). Legendaries are very rare.
+- Open the Dex, tap a Pokemon to make it your partner. It fights beside the knight,
+  or switch "Fight as" to Partner to let it lead the battle.
+- Sprites load from the PokeAPI sprites repo on GitHub, so they need internet. Pokemon art belongs
+  to Nintendo / Game Freak - personal use only.
