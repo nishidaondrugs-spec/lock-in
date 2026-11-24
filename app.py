@@ -289,7 +289,7 @@ def restart_self():
     code = "import time,subprocess;time.sleep(2);subprocess.Popen(%r)" % ([sys.executable, os.path.join(BASE, 'app.py')] + ([] if show else ['--no-window']),)
     flags = (0x00000200 | 0x08000000) if os.name == 'nt' else 0
     subprocess.Popen([sys.executable, '-c', code], creationflags=flags, close_fds=True)
-    time.sleep(0.3)
+    time.sleep(1.5)   # let the HTTP reply reach the window before exiting
     os._exit(0)
 
 
@@ -405,7 +405,11 @@ class H(BaseHTTPRequestHandler):
                 body = json.loads(self.rfile.read(n).decode('utf-8') or '{}')
             except Exception:
                 body = {}
-            return self._send(200, check_update(body.get('url'), bool(body.get('apply'))))
+            try:
+                res = check_update(body.get('url'), bool(body.get('apply')))
+            except Exception as e:
+                res = {'status': 'error', 'error': str(e)[:160], 'version': current_version()}
+            return self._send(200, res)
         if self.path.split('?')[0] == '/api/quit':
             self._send(200, {'ok': True})
             threading.Thread(target=lambda: (time.sleep(0.3), os._exit(0)), daemon=True).start()
