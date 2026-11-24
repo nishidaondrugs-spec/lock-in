@@ -2,7 +2,7 @@
 Runs a tiny local server (stdlib only) and opens it in an app-style window.
 Data lives in data/store.json (a backup of the previous save is kept as store.bak.json).
 """
-import json, os, sys, threading, time, subprocess, webbrowser, shutil, io, zipfile, urllib.request
+import json, os, sys, threading, time, subprocess, webbrowser, shutil, io, zipfile, urllib.request, secrets, uuid
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timedelta
 
@@ -36,6 +36,30 @@ PORT = 47615
 URL = 'http://127.0.0.1:%d/' % PORT
 LOCK = threading.Lock()
 last_ping = 0.0
+
+# ---- connector (Claude <-> Lock In): token-protected command queue. The page applies the commands itself,
+# so Claude can never overwrite what you are typing in the window.
+TOKEN_FILE = os.path.join(DATA, 'agent.token')
+QUEUE = []          # pending commands for the page
+RESULTS = {}        # qid -> result reported by the page
+QLOCK = threading.Lock()
+
+
+def agent_token():
+    try:
+        with open(TOKEN_FILE, 'r', encoding='utf-8') as f:
+            t = f.read().strip()
+            if len(t) >= 16:
+                return t
+    except Exception:
+        pass
+    t = secrets.token_hex(24)
+    with open(TOKEN_FILE, 'w', encoding='utf-8') as f:
+        f.write(t)
+    return t
+
+
+AGENT_TOKEN = agent_token()
 
 DEFAULT_UPDATE_URL = 'https://raw.githubusercontent.com/nishidaondrugs-spec/lock-in/main'
 DEFAULT_SETTINGS = {
@@ -354,6 +378,10 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _agent_ok(self):
+        t = self.headers.get('X-LockIn-Token', '')
+        return bool(t) and secrets.compare_digest(t, AGENT_TOKEN)
+
     def do_GET(self):
         global last_ping
         p = self.path.split('?')[0]
@@ -364,6 +392,23 @@ class H(BaseHTTPRequestHandler):
             last_ping = time.time()
             with LOCK:
                 return self._send(200, load())
+        if p == '/api/queue':
+            if self.headers.get('X-LockIn') != '1':
+                return self._send(403, {'error': 'forbidden'})
+            last_ping = time.time()
+            with QLOCK:
+                return self._send(200, {'cmds': list(QUEUE)})
+        if p == '/api/agent/state':
+            if not self._agent_ok():
+                return self._send(403, {'error': 'bad token'})
+            with LOCK:   # read-only: does not count as the page being open
+                return self._send(200, load())
+        if p == '/api/agent/result':
+            if not self._agent_ok():
+                return self._send(403, {'error': 'bad token'})
+            qid = (self.path.split('qid=') + [''])[1].split('&')[0]
+            with QLOCK:
+                return self._send(200, {'done': qid in RESULTS, 'result': RESULTS.get(qid)})
         if p == '/api/version':
             return self._send(200, {'version': current_version(), 'data': DATA})
         if p == '/api/ping':
@@ -412,6 +457,35 @@ class H(BaseHTTPRequestHandler):
             except Exception as e:
                 res = {'status': 'error', 'error': str(e)[:160], 'version': current_version()}
             return self._send(200, res)
+        pp = self.path.split('?')[0]
+        if pp in ('/api/queue/ack', '/api/agent/cmd'):
+            try:
+                n = int(self.headers.get('Content-Length', '0'))
+                body = json.loads(self.rfile.read(n).decode('utf-8') or '{}')
+                assert isinstance(body, dict)
+            except Exception:
+                return self._send(400, {'error': 'bad body'})
+            if pp == '/api/queue/ack':
+                if self.headers.get('X-LockIn') != '1':
+                    return self._send(403, {'error': 'forbidden'})
+                res = body.get('results') or {}
+                with QLOCK:
+                    for qid, r in res.items():
+                        RESULTS[str(qid)] = r
+                    QUEUE[:] = [c for c in QUEUE if c.get('qid') not in set(res.keys())]
+                    for k in list(RESULTS)[:-200]:
+                        RESULTS.pop(k, None)
+                return self._send(200, {'ok': True})
+            if not self._agent_ok():
+                return self._send(403, {'error': 'bad token'})
+            if body.get('op') not in ('add', 'quick', 'update', 'complete', 'delete'):
+                return self._send(400, {'error': 'unknown op'})
+            body['qid'] = uuid.uuid4().hex[:10]
+            with QLOCK:
+                QUEUE.append(body)
+            if time.time() - last_ping > 30:   # window is closed -> open it so the command gets applied
+                threading.Thread(target=open_window, daemon=True).start()
+            return self._send(200, {'qid': body['qid']})
         if self.path.split('?')[0] == '/api/quit':
             self._send(200, {'ok': True})
             threading.Thread(target=lambda: (time.sleep(0.3), os._exit(0)), daemon=True).start()

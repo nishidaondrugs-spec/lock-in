@@ -31,3 +31,12 @@ POKEMON IN THE ARENA (v2.0)
   or switch "Fight as" to Partner to let it lead the battle.
 - Sprites load from the PokeAPI sprites repo on GitHub, so they need internet. Pokemon art belongs
   to Nintendo / Game Freak - personal use only.
+
+CLAUDE CONNECTOR (v2.1)
+Lets the Claude desktop app read your Lock In plan and add / move / complete things for you.
+- Setup: install_autostart.bat does it automatically. Or run connect_claude.bat. Then FULLY quit and reopen Claude.
+- Try: "what's on my Lock In this week?", "find me a free 90 minutes on Saturday", "pencil in Lars lectures Sat 10am".
+- It only talks to Lock In on THIS computer (127.0.0.1) using a private key stored in %APPDATA%\LockIn\agent.token.
+  Nothing is sent to the internet by the connector. Claude only sees what you ask it about in a chat.
+- Lock In has to be running. If the window is closed when Claude adds something, Lock In opens it to apply the change.
+- Manual setup / Claude Code:  claude mcp add lockin -- python "%LOCALAPPDATA%\LockIn\app\mcp_lockin.py"

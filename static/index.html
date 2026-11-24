@@ -696,10 +696,42 @@ function arenaFrame(ts){requestAnimationFrame(arenaFrame);if(!S||document.hidden
   const dt=Math.min(100,ts-(G.last||ts));G.last=ts;if(G.bannerT>0)G.bannerT-=dt;const W=Math.max(300,$('#arena').clientWidth);if(c.width!==W)c.width=W;
   arenaUpdate(dt,ts,W);if(open)arenaDraw(ts,c,W,c.height);if(ts-G.hudAt>250){G.hudAt=ts;hudTick();$('#hfold').textContent=open?'▾':'▴'}}
 setInterval(()=>{if(G.dirty&&S){G.dirty=false;save()}},15000);
+/* ---------- connector: commands from Claude (through the local MCP server) ---------- */
+const DRE=/^\d{4}-\d\d-\d\d$/,TRE=/^([01]?\d|2[0-3]):[0-5]\d$/,APPL={};let _qBusy=false;
+function cmdFields(f){const o={};if(!f)return o;
+ ['title','notes','area','link','company','emoji','color'].forEach(k=>{if(f[k]!==undefined)o[k]=f[k]===null?null:String(f[k])});
+ if(o.area&&!['content','jobs','life'].includes(o.area))delete o.area;
+ if(f.date!==undefined)o.date=f.date&&DRE.test(f.date)?f.date:null;
+ ['time','endTime'].forEach(k=>{if(f[k]!==undefined)o[k]=f[k]&&TRE.test(f[k])?(f[k].length===4?'0'+f[k]:f[k]):null});
+ if(f.tentative!==undefined)o.tentative=!!f.tentative;
+ if(f.remind!==undefined)o.remind=f.remind===null?null:Math.max(0,+f.remind||0);
+ if(f.repeat!==undefined)o.repeat=f.repeat&&Array.isArray(f.repeat.days)?{days:f.repeat.days.map(Number).filter(d=>d>=0&&d<=6),interval:Math.max(1,+f.repeat.interval||1)}:null;
+ if(f.until!==undefined)o.until=f.until&&DRE.test(f.until)?f.until:null;
+ return o}
+function applyCmd(c){try{
+ if(c.op==='quick'){const it=addQuick(String(c.text||''),{});if(!it)return{ok:false,msg:'Could not make sense of that text'};return{ok:true,id:it.id,msg:'Added "'+it.title+'"'+(it.date?' on '+it.date:' to the inbox')}}
+ if(c.op==='add'){const f=cmdFields(c.fields);if(!f.title||!f.title.trim())return{ok:false,msg:'A title is required'};
+  if(f.time&&!f.date&&!f.repeat)delete f.time;if(f.date&&f.time&&f.remind===undefined)f.remind=S.settings.remindDefault;
+  const it=mk(f);if(!it.emoji)it.emoji=autoEmoji(it.title)||null;S.items.push(it);return{ok:true,id:it.id,msg:'Added "'+it.title+'"'+(it.date?' on '+it.date:' to the inbox')+(it.tentative?' (pencilled in)':'')}}
+ const i=byId(c.id);if(!i)return{ok:false,msg:'No item with id '+c.id};
+ if(c.op==='update'){Object.assign(i,cmdFields(c.fields));if(!i.date&&!i.repeat)i.tentative=false;return{ok:true,id:i.id,msg:'Updated "'+i.title+'"'}}
+ if(c.op==='complete'){const undo=c.done===false;
+  if(i.repeat){const ds=c.date&&DRE.test(c.date)?c.date:iso(new Date()),a=i.doneDates=i.doneDates||[],k=a.indexOf(ds);if(undo){if(k>=0)a.splice(k,1)}else if(k<0){a.push(ds);reward('task',i.id+'@'+ds)}}
+  else if(undo)i.done=false;else if(!i.done){i.done=true;reward('task',i.id)}
+  updateWin();return{ok:true,id:i.id,msg:(undo?'Marked not done: ':'Done: ')+i.title}}
+ if(c.op==='delete'){const sc=c.scope||'all',dok=DRE.test(c.date||'');
+  if(i.repeat&&sc==='occurrence'&&dok){(i.skip=i.skip||[]).push(c.date);return{ok:true,msg:'Removed '+i.title+' on '+c.date+' only'}}
+  if(i.repeat&&sc==='future'&&dok){const d=new Date(c.date+'T12:00:00');d.setDate(d.getDate()-1);const u=iso(d);if(u>=i.date){i.until=u;return{ok:true,msg:'Ended '+i.title+' from '+c.date+' onwards'}}}
+  S.items=S.items.filter(x=>x!==i);S.top3.ids=(S.top3.ids||[]).filter(x=>x!==i.id);return{ok:true,msg:'Deleted "'+i.title+'"'+(i.repeat?' (all occurrences)':'')}}
+ return{ok:false,msg:'Unknown command'}}catch(e){return{ok:false,msg:'Error: '+e.message}}}
+function softRender(n){const typing=/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement||{}).tagName||'');if($('#modal').classList.contains('on')||typing){if(n<20)setTimeout(()=>softRender(n+1),2000);return}render()}
+function pollQueue(){if(_qBusy||!S)return;_qBusy=true;fetch('/api/queue',{headers:{'X-LockIn':'1'}}).then(r=>r.json()).then(j=>{const cmds=j.cmds||[];if(!cmds.length){_qBusy=false;return}
+  const results={};let changed=false;cmds.forEach(c=>{if(!APPL[c.qid]){APPL[c.qid]=applyCmd(c);changed=true}results[c.qid]=APPL[c.qid]});if(changed)save();
+  setTimeout(()=>fetch('/api/queue/ack',{method:'POST',headers:{'Content-Type':'application/json','X-LockIn':'1'},body:JSON.stringify({results})}).then(()=>{_qBusy=false;if(changed){softRender(0);say('Claude updated your plan')}}).catch(()=>{_qBusy=false}),500)}).catch(()=>{_qBusy=false})}
 /* ---------- boot ---------- */
 function tickClock(){const d=new Date();$('#clock').textContent=DOW3[(d.getDay()+6)%7]+' '+pad(d.getHours())+':'+pad(d.getMinutes());const nl=$('#nowl'),tlx=$('.tl');if(nl&&tlx)nl.style.top=((d.getHours()*60+d.getMinutes()-(+tlx.dataset.lo))/60*PPH)+'px';const b=$('#bigclock');if(b)b.textContent=pad(d.getHours())+':'+pad(d.getMinutes())}
 fetch('/api/state').then(r=>r.json()).then(j=>{S=j;S.fired=S.fired||{};S.days=S.days||{};S.top3=S.top3||{date:'',ids:[]};initF();render();tickClock();checkReminders();
-  setInterval(tickClock,15000);setInterval(checkReminders,15000);let pingOk=true;setInterval(()=>fetch('/api/ping').then(()=>{if(!pingOk)location.reload();pingOk=true}).catch(()=>{pingOk=false}),10000);
+  setInterval(tickClock,15000);setInterval(checkReminders,15000);setInterval(pollQueue,3000);pollQueue();let pingOk=true;setInterval(()=>fetch('/api/ping').then(()=>{if(!pingOk)location.reload();pingOk=true}).catch(()=>{pingOk=false}),10000);
   setInterval(()=>{if(F.running){const l=Math.round((F.end-Date.now())/1000);F.left=Math.max(0,l);if(l<=0)fDone();else paint()}},500);
   requestAnimationFrame(arenaFrame);
   $('#arenac').addEventListener('click',e=>{const t=e.target,r=t.getBoundingClientRect(),cx=(e.clientX-r.left)*(t.width/r.width);if(gs().wild&&cx>t.width-170)catchWild()});

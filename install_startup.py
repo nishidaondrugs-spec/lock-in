@@ -56,6 +56,16 @@ try:
     subprocess.run(['powershell', '-NoProfile', '-Command', ps], check=False, timeout=30)
 except Exception:
     pass
+try:
+    sys.path.insert(0, dst)
+    import connect_claude
+    _e, _done, _bad = connect_claude.connect(dst)
+    if _done:
+        print('Claude connector set up. Fully quit and reopen the Claude app to use it.')
+    elif _bad:
+        print('Could not set up the Claude connector automatically - run connect_claude.bat later.')
+except Exception as _ex:
+    print('Skipped the Claude connector setup (%s). You can run connect_claude.bat later.' % _ex)
 print('Installed to: ' + dst)
 print('Your data lives in: ' + appdata + '  (safe to reinstall / delete the unzipped folder)')
 print('Starting Lock In...')
