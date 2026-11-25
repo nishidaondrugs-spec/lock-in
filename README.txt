@@ -50,3 +50,9 @@ AUTO-SLOT + NOTES (v2.3)
 - Inbox > "Auto-slot into my free time": Lock In finds gaps in your week (9am-9pm, 15 min clear of other events,
   max 3 a day), shows you the plan, and pencils the ones you keep. Nothing is final until you confirm.
 - Notes (left menu): a scratchpad with autosave. Start a line with [] and press "Turn [] lines into Inbox tasks".
+
+CONTENT + EP STUDIO (v2.4)
+- Content view: "New episode" makes "EP. N turning my followers into cards" with a 7-step checklist (follower, cut-out,
+  record, CapCut edit, accept card, post, log after 24h). Ticking "Post it" moves it to Posted.
+- "Reels posted this week x/6" counter (also on Today). Set your goal and the next EP number in Settings.
+- "Open EP Studio" button: in Settings put EP Studio's web address (http://...) or the file path on this computer.

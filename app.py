@@ -65,7 +65,7 @@ DEFAULT_UPDATE_URL = 'https://raw.githubusercontent.com/nishidaondrugs-spec/lock
 DEFAULT_SETTINGS = {
     'name': '', 'openOnWake': True, 'focusMin': 25, 'breakMin': 5,
     'remindDefault': 10, 'jobGoal': 5, 'updateUrl': DEFAULT_UPDATE_URL, 'autoUpdate': True,
-    'jobSearches': [],
+    'jobSearches': [], 'epStudio': '', 'epNext': 21, 'reelGoal': 6,
 }
 
 
@@ -498,6 +498,21 @@ class H(BaseHTTPRequestHandler):
             if time.time() - last_ping > 30:   # window is closed -> open it so the command gets applied
                 threading.Thread(target=open_window, daemon=True).start()
             return self._send(200, {'qid': body['qid']})
+        if self.path.split('?')[0] == '/api/open':   # open the EP Studio path saved in Settings (never an arbitrary path)
+            if self.headers.get('X-LockIn') != '1':
+                return self._send(403, {'error': 'forbidden'})
+            with LOCK:
+                target = str(load().get('settings', {}).get('epStudio') or '').strip().strip('"')
+            if not target or target.lower().startswith(('http://', 'https://')) or not os.path.exists(target):
+                return self._send(200, {'ok': False, 'error': "I can't find that EP Studio path - check it in Settings."})
+            try:
+                if hasattr(os, 'startfile'):
+                    os.startfile(target)
+                else:
+                    subprocess.Popen(['xdg-open', target])
+                return self._send(200, {'ok': True})
+            except Exception as e:
+                return self._send(200, {'ok': False, 'error': str(e)[:120]})
         if self.path.split('?')[0] == '/api/quit':
             self._send(200, {'ok': True})
             threading.Thread(target=lambda: (time.sleep(0.3), os._exit(0)), daemon=True).start()

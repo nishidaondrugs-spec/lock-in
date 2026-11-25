@@ -378,7 +378,7 @@ VIEWS.today=()=>{
   <div class="card"><h4>Your 3 for today</h4>${slots}</div>
   <div class="card"><h4>Next up</h4>${nu?`<div style="font-size:18px;font-weight:600">${ti(nu.i)}</div><div class="mut">${fmtTime(nu.i.time)} · in ${until(nu.t)}</div>`:'<div class="mut">Nothing timed left today. Good window to lock in.</div>'}
   <div style="margin-top:12px"><button class="btn pri" data-act="nav" data-v="focus">🎯 Start focus session</button></div></div>
-  <div class="card"><h4>Momentum</h4><div class="stat"><div><span class="flame">${sk?'🔥':'💤'}</span><b>${sk}</b><span class="mut">day streak</span></div><div><span class="flame">🎯</span><b>${sess}</b><span class="mut">sessions today</span></div></div><div class="mut" style="margin-top:8px;font-size:12px">Streak = days you cleared all of your 3.</div></div>
+  <div class="card"><h4>Momentum</h4><div class="stat"><div><span class="flame">${sk?'🔥':'💤'}</span><b>${sk}</b><span class="mut">day streak</span></div><div><span class="flame">🎯</span><b>${sess}</b><span class="mut">sessions today</span></div></div><div class="mut" style="margin-top:8px;font-size:12px">Streak = days you cleared all of your 3.</div><div class="mut" style="margin-top:6px;font-size:12px">🎬 Reels posted this week: <b style="color:var(--txt)">${postedThisWeek()}/${S.settings.reelGoal||6}</b></div></div>
   <div class="card"><h4>Pencilled in <span>${tent.length}</span></h4>${tent.length?tent.slice(0,5).map(i=>row(i,{time:false,date:true})).join(''):'<div class="empty-note">Nothing waiting for a decision.</div>'}${tent.slice(0,5).length?'<div class="mut" style="font-size:12px;margin-top:6px">Confirm when you’re sure, or move them.</div>':''}</div>
   <div class="card"><h4>Inbox <span>${inb.length}</span></h4>${inb.slice(0,4).map(i=>row(i,{time:false,drag:true,extra:`<button class="btn sm" data-act="pencil" data-when="today" data-id="${i.id}">Today</button><button class="btn sm" data-act="pencil" data-when="tomorrow" data-id="${i.id}">Tmrw</button>`})).join('')||'<div class="empty-note">Empty. Brain dump in the bar above.</div>'}<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">${inb.length>4?`<button class="btn sm" data-act="nav" data-v="inbox">See all ${inb.length}</button>`:''}${inb.length?'<button class="btn sm" data-act="autoslot">✨ Auto-slot</button>':''}</div></div>
   <div class="card"><h4>💼 Job hunt</h4><div style="display:flex;justify-content:space-between"><span>Applied this week</span><b>${applied} / ${goal}</b></div><div class="bar" style="margin:8px 0"><i style="width:${Math.min(100,applied/goal*100)}%"></i></div><button class="btn sm" data-act="nav" data-v="jobs">Open job board</button></div>
@@ -412,11 +412,11 @@ VIEWS.inbox=()=>{
 
 function boardView(area){
   const cols=STAGES[area],items=S.items.filter(i=>i.area===area&&i.stage);
-  const card=i=>`<div class="bcard" draggable="true" data-drag="${i.id}" data-act="edit" data-id="${i.id}" ${dotc(i)}><div>${ti(i)}</div><div class="s">${i.company?`<span>${esc(i.company)}</span>`:''}${i.date?`<span class="${i.tentative?'tag':''}">${i.tentative?'? ':''}${relDay(i.date)}</span>`:''}${i.link?`<a href="${esc(i.link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">link ↗</a>`:''}</div></div>`;
+  const card=i=>`<div class="bcard" draggable="true" data-drag="${i.id}" data-act="edit" data-id="${i.id}" ${dotc(i)}><div>${ti(i)}</div><div class="s">${i.checklist?`<span>☑ ${clDone(i)}/${i.checklist.length}</span>`:''}${i.company?`<span>${esc(i.company)}</span>`:''}${i.date?`<span class="${i.tentative?'tag':''}">${i.tentative?'? ':''}${relDay(i.date)}</span>`:''}${i.link?`<a href="${esc(i.link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">link ↗</a>`:''}</div></div>`;
   const head=area==='jobs'?`<h2>Job hunt</h2><p class="mut" style="margin:4px 0">Type <b>Role @ Company</b> and press Enter. Drag cards across as they progress. Deadline? add a date like “fri”.</p>`:`<h2>Content pipeline</h2><p class="mut" style="margin:4px 0">Idea → Scripted → Filmed → Edited → Posted. Add a post date (e.g. “sat 6pm”) and it appears on the calendar.</p>`;
   const searches=area==='jobs'?`<div class="card" style="margin-bottom:16px"><h4>Find jobs — opens in your browser</h4><div class="links">${(S.settings.jobSearches||[]).length?'':'<div class="mut">No searches yet — add some in Settings (one per line: role | place).</div>'}${(S.settings.jobSearches||[]).map(s=>{const q=encodeURIComponent(s.q),l=encodeURIComponent(s.l),sl=x=>x.toLowerCase().trim().replace(/\s+/g,'-');
     return `<div><span>${esc(s.q)} · ${esc(s.l)}</span><a target="_blank" rel="noopener" href="https://uk.indeed.com/jobs?q=${q}&l=${l}&sort=date">Indeed</a><a target="_blank" rel="noopener" href="https://www.linkedin.com/jobs/search/?keywords=${q}&location=${l}&f_TPR=r604800">LinkedIn</a><a target="_blank" rel="noopener" href="https://www.reed.co.uk/jobs/${sl(s.q)}-jobs-in-${sl(s.l)}">Reed</a></div>`}).join('')}</div></div>`:'';
-  return head+`<div class="addrow"><input type="text" id="bAdd" data-area="${area}" placeholder="${area==='jobs'?'Add a job:  Treasury Analyst @ Acme  fri':'Add an idea:  skater cards ep 21'}  (Enter)"></div>${searches}
+  return head+(area==='content'?contentBar():'')+`<div class="addrow"><input type="text" id="bAdd" data-area="${area}" placeholder="${area==='jobs'?'Add a job:  Treasury Analyst @ Acme  fri':'Add an idea:  skater cards ep 21'}  (Enter)"></div>${searches}
   <div class="board" style="grid-template-columns:repeat(${cols.length},minmax(190px,1fr))">${cols.map(([k,n])=>{const l=items.filter(i=>i.stage===k).sort((a,b)=>(a.date||'9').localeCompare(b.date||'9')||a.created-b.created);
   return `<div class="colb" data-drop="stage" data-stage="${k}" data-area="${area}"><h4>${n} <span>${l.length}</span></h4>${l.map(card).join('')}</div>`}).join('')}</div>`}
 VIEWS.content=()=>boardView('content');VIEWS.jobs=()=>boardView('jobs');
@@ -455,7 +455,7 @@ function render(){
   if(view==='calendar')$('#main').style.overflow='hidden';else $('#main').style.overflow='auto';
 }
 /* ---------- editor ---------- */
-function openEdit(it,isNew,occ){E=Object.assign({},it);E.repeat=it.repeat?{days:[...it.repeat.days],interval:it.repeat.interval||1}:null;E._new=!!isNew;E._occ=occ||null;drawEdit()}
+function openEdit(it,isNew,occ){E=Object.assign({},it);if(it.checklist)E.checklist=it.checklist.map(c=>Object.assign({},c));E.repeat=it.repeat?{days:[...it.repeat.days],interval:it.repeat.interval||1}:null;E._new=!!isNew;E._occ=occ||null;drawEdit()}
 function repUI(){const r=E.repeat,k=!r?'':r.days.length===7?'daily':(r.days.slice().sort().join()==='1,2,3,4,5'&&r.interval===1)?'weekdays':r.interval>1?'fortnightly':'weekly';
   const opts=[['','Doesn’t repeat'],['daily','Every day'],['weekdays','Every weekday'],['weekly','Every week on…'],['fortnightly','Every other week on…']];
   return `<div class="f" style="grid-template-columns:1fr 1fr"><label>Repeat<select id="e_rep">${opts.map(([v,n])=>`<option value="${v}" ${k===v?'selected':''}>${n}</option>`).join('')}</select></label>${r?`<label>Repeat until (optional)<input type="date" id="e_until" value="${E.until||''}"></label>`:'<span></span>'}</div>`+
@@ -468,6 +468,7 @@ function drawEdit(){
   <input type="text" id="e_title" value="${esc(E.title)}" placeholder="Title" style="font-size:16px;padding:10px">
   ${emojiUI()}
   <textarea id="e_notes" rows="3" placeholder="Notes…" style="margin-top:10px">${esc(E.notes)}</textarea>
+  ${clUI()}
   <div class="f four"><label>Area<select id="e_area">${Object.entries(AREAS).map(([k,a])=>`<option value="${k}" ${E.area===k?'selected':''}>${a.n}</option>`).join('')}</select></label>
   <label>Date<input type="date" id="e_date" value="${E.date||''}"></label><label>Time<input type="time" id="e_time" value="${E.time||''}"></label><label>Ends<input type="time" id="e_end" value="${E.endTime||''}"></label></div>
   <div class="f"><label>Remind<select id="e_rem">${rems.map(([v,n])=>`<option value="${v}" ${(E.remind==null?'':E.remind)==v&&(E.remind==null)==(v==='')?'selected':''}>${n}</option>`).join('')}</select></label>${stSel}</div>
@@ -480,7 +481,7 @@ function drawEdit(){
 function collect(){E.title=$('#e_title').value.trim();if($('#e_emo'))E.emoji=$('#e_emo').value.trim()||null;E.notes=$('#e_notes').value;E.area=$('#e_area').value;E.date=$('#e_date').value||null;E.time=$('#e_time').value||null;E.endTime=$('#e_end').value||null;if(!E.time)E.endTime=null;const prevIv=E.repeat?E.repeat.interval:1,rk=$('#e_rep').value;if(!rk)E.repeat=null;else{let dy;if(rk==='daily')dy=[0,1,2,3,4,5,6];else if(rk==='weekdays')dy=[1,2,3,4,5];else{dy=$$('.e_day').filter(x=>x.checked).map(x=>+x.value);if(!dy.length)dy=[E.date?pISO(E.date).getDay():new Date().getDay()]}E.repeat={days:dy,interval:rk==='fortnightly'?(prevIv>1?prevIv:2):1}}E.until=$('#e_until')?($('#e_until').value||null):E.until;
   const r=$('#e_rem').value;E.remind=r===''?null:+r;if($('#e_stage'))E.stage=$('#e_stage').value;if($('#e_co')){E.company=$('#e_co').value;E.link=$('#e_link').value}E.tentative=$('#e_tent').checked}
 const closeModal=()=>{$('#modal').classList.remove('on');$('#modal').innerHTML='';E=null};
-function setStage(i,stage){i.stage=stage;i.done=isTerm(i);if(stage==='applied'&&!i.appliedAt)i.appliedAt=Date.now()}
+function setStage(i,stage){i.stage=stage;i.done=isTerm(i);if(stage==='applied'&&!i.appliedAt)i.appliedAt=Date.now();if(stage==='posted'&&!i.postedAt)i.postedAt=Date.now()}
 function pencilTo(i,when,keep){const d=new Date();if(when==='tomorrow')d.setDate(d.getDate()+1);if(when==='sat'){const df=(6-d.getDay()+7)%7;d.setDate(d.getDate()+(df||7))}i.date=iso(d);if(!keep)i.tentative=true}
 
 /* ---------- pickers / settings ---------- */
@@ -495,6 +496,8 @@ function openSettings(){const s=S.settings;
   <label class="chk"><input type="checkbox" id="s_wake" ${s.openOnWake?'checked':''}> Pop open when I wake the laptop</label>
   <div class="f" style="grid-template-columns:1fr"><label>Job searches (one per line: role | place)<textarea id="s_jobs" rows="4">${esc((s.jobSearches||[]).map(x=>x.q+' | '+x.l).join('\n'))}</textarea></label></div>
   <div class="f" style="grid-template-columns:1fr"><label>Update address (optional — where new versions are published)<input type="text" id="s_upd" value="${esc(s.updateUrl||'')}" placeholder="https://raw.githubusercontent.com/you/lock-in/main"></label></div>
+  <div class="f"><label>Reels per week goal<input type="number" id="s_reel" value="${s.reelGoal||6}"></label><label>Next episode number<input type="number" id="s_ep" value="${s.epNext||21}"></label></div>
+  <div class="f" style="grid-template-columns:1fr"><label>EP Studio — web address or file path on this computer<input type="text" id="s_epstudio" value="${esc(s.epStudio||'')}" placeholder="http://localhost:5000  or  C:\\Users\\you\\EP_Studio\\index.html"></label></div>
   <label class="chk"><input type="checkbox" id="s_auto" ${s.autoUpdate!==false?'checked':''}> Install updates automatically (your data is never touched)</label>
   <div class="mbtn" style="margin:0 0 4px"><button class="btn" data-act="checkupdate">Check for updates</button><label class="btn" style="cursor:pointer">⬆ Restore a backup<input type="file" id="s_imp" accept=".json" data-chg="import" style="display:none"></label><span class="mut" id="verline" style="align-self:center;font-size:12px"></span></div>
   <div class="mbtn"><button class="btn pri" data-act="saveSettings">Save</button><button class="btn" data-act="closeModal">Cancel</button><a class="btn" href="/api/export" download>⬇ Backup</a><span style="flex:1"></span><button class="btn bad" data-act="quit">Quit Lock In</button></div>
@@ -537,6 +540,9 @@ const ACT={
  lead:(el)=>{const g=gs();g.lead=el.dataset.v;G.hp=null;G.dirty=true;save();drawDex()},
  catch:()=>catchWild(),
  autoslot:()=>openAutoSlot(),
+ newep:()=>{const n=S.settings.epNext||21;const it=mk({title:'EP. '+n+' turning my followers into cards',area:'content',emoji:'🎴'});it.checklist=EP_STEPS.map(t=>({t,d:false}));S.settings.epNext=n+1;S.items.push(it);save();render();openEdit(byId(it.id),false)},
+ addcl:()=>{collect();E.checklist=EP_STEPS.map(t=>({t,d:false}));drawEdit()},
+ openep:()=>{const p=(S.settings.epStudio||'').trim();if(!p){ACT.settings();return}if(/^https?:\/\//i.test(p)){window.open(p,'_blank');return}fetch('/api/open',{method:'POST',headers:{'X-LockIn':'1'}}).then(r=>r.json()).then(j=>say(j.ok?'Opening EP Studio…':(j.error||'Could not open it'))).catch(()=>say('Could not reach Lock In'))},
  asskip:(el)=>{AS=AS.filter(x=>x.it.id!==el.dataset.id);drawAuto()},
  asapply:()=>{let n=0;for(const x of AS){if(!x.p)continue;const i=byId(x.it.id);if(!i)continue;Object.assign(i,{date:x.p.date,time:x.p.time,endTime:x.p.endTime,tentative:true});if(i.remind==null)i.remind=S.settings.remindDefault;n++}AS=null;save();closeModal();render();say(n+' pencilled in — confirm the ones you want')},
  newnote:()=>{S.notes=S.notes||[];const n={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),title:'',body:'',created:Date.now(),updated:Date.now()};S.notes.push(n);NOTE=n.id;save();render();$('#n_title')?.focus()},
@@ -560,7 +566,7 @@ const ACT={
  cutAfter:()=>{const i=byId(E.id),oc=E._occ;if(!i)return;if(oc<=i.date){S.items=S.items.filter(x=>x.id!==i.id)}else{i.until=iso(addDays(pISO(oc),-1))}save();closeModal();render();say('Deleted this and all after')},
  delEdit:()=>{const id=E.id;closeModal();ACT.del(null,id)},
  settings:()=>openSettings(),
- saveSettings:()=>{const s=S.settings;s.name=$('#s_name').value.trim();s.jobGoal=+$('#s_goal').value||5;s.focusMin=+$('#s_focus').value||25;s.breakMin=+$('#s_break').value||5;s.remindDefault=+$('#s_rem').value||0;s.openOnWake=$('#s_wake').checked;s.updateUrl=$('#s_upd').value.trim();s.autoUpdate=$('#s_auto').checked;
+ saveSettings:()=>{const s=S.settings;s.name=$('#s_name').value.trim();s.jobGoal=+$('#s_goal').value||5;s.focusMin=+$('#s_focus').value||25;s.breakMin=+$('#s_break').value||5;s.remindDefault=+$('#s_rem').value||0;s.openOnWake=$('#s_wake').checked;s.updateUrl=$('#s_upd').value.trim();s.autoUpdate=$('#s_auto').checked;s.reelGoal=+$('#s_reel').value||6;s.epNext=+$('#s_ep').value||21;s.epStudio=$('#s_epstudio').value.trim();
    s.jobSearches=$('#s_jobs').value.split('\n').map(l=>l.split('|').map(x=>x.trim())).filter(a=>a[0]).map(a=>({q:a[0],l:a[1]||'London'}));initF();save();closeModal();render()},
  checkupdate:()=>{const url=$('#s_upd').value.trim();say('Checking…');fetch('/api/update',{method:'POST',body:JSON.stringify({url,apply:true})}).then(r=>r.json()).then(j=>{if(j.status==='no-url')say('Add an update address first');else if(j.status==='current')say('Up to date (v'+j.version+')');else if(j.status==='updated'){say('Updated to v'+j.remote+' — restarting…')}else say('Update failed: '+(j.error||'unknown'))}).catch(e=>say('Lock In did not answer ('+(e&&e.message?e.message:'no response')+'). Close it fully (stop_lockin.bat) and start it again.'))},
  quit:()=>{if(confirm('Quit Lock In completely? Reminders stop until you start it again.'))fetch('/api/quit',{method:'POST'}).finally(()=>window.close())},
@@ -576,6 +582,7 @@ document.addEventListener('change',e=>{const el=e.target;
   if(el.id==='e_area'){collect();E.stage=defStage(E.area);drawEdit();return}
   if(el.id==='e_rep'){collect();drawEdit();return}
   if(el.dataset.chg==='setdate'&&el.value){const i=byId(el.dataset.id);i.date=el.value;i.tentative=true;save();render();say('Pencilled in for '+relDay(i.date))}
+  if(el.dataset.chg==='clt'&&E&&E.checklist){collect();const c=E.checklist[+el.dataset.k];if(c){c.d=el.checked;if(el.checked&&/^Post it/i.test(c.t)&&E.stage!=='posted')E.stage='posted'}drawEdit();return}
   if(el.dataset.chg==='ftask')F.task=el.value;
   if(el.dataset.chg==='import'&&el.files&&el.files[0]){const r=new FileReader();r.onload=()=>{try{const o=JSON.parse(r.result);if(!o||!Array.isArray(o.items))throw 0;if(!confirm('Replace everything in Lock In with this backup ('+o.items.length+' items)?'))return;o.settings=Object.assign({},S.settings,o.settings||{});o.fired=o.fired||{};o.days=o.days||{};o.top3=o.top3||{date:'',ids:[]};S=o;save();closeModal();render();say('Backup restored')}catch(e){say('That file isn’t a Lock In backup')}};r.readAsText(el.files[0])}});
 document.addEventListener('keydown',e=>{
@@ -726,6 +733,14 @@ function arenaFrame(ts){requestAnimationFrame(arenaFrame);if(!S||document.hidden
   const dt=Math.min(100,ts-(G.last||ts));G.last=ts;if(G.bannerT>0)G.bannerT-=dt;const W=Math.max(300,$('#arena').clientWidth);if(c.width!==W)c.width=W;
   arenaUpdate(dt,ts,W);if(open)arenaDraw(ts,c,W,c.height);if(ts-G.hudAt>250){G.hudAt=ts;hudTick();$('#hfold').textContent=open?'▾':'▴'}}
 setInterval(()=>{if(G.dirty&&S){G.dirty=false;save()}},15000);
+/* ---------- content: episode checklist, weekly reel counter, EP Studio link ---------- */
+const EP_STEPS=['Pick the next follower from the queue','Photo cut-out saved (ChatGPT)','Record the spin (Record mode)','Edit in CapCut (memes + pacing)','Accept the card on the VDS site','Post it','Log views, shares and sign-ups after 24h'];
+const clDone=i=>(i.checklist||[]).filter(c=>c.d).length;
+const weekStart=()=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return d.getTime()};
+const postedThisWeek=()=>S.items.filter(i=>i.stage==='posted'&&i.postedAt&&i.postedAt>=weekStart()).length;
+function contentBar(){const n=postedThisWeek(),g=S.settings.reelGoal||6,pc=Math.min(100,n/g*100),es=(S.settings.epStudio||'').trim();
+ return `<div class="card" style="margin:12px 0;display:flex;align-items:center;gap:16px;flex-wrap:wrap"><div style="min-width:220px;flex:1"><div class="mut" style="font-size:11px;letter-spacing:.8px">REELS POSTED THIS WEEK</div><div style="display:flex;align-items:center;gap:10px;margin-top:4px"><b style="font-size:22px">${n}/${g}</b><div class="xpb" style="width:140px"><i style="width:${pc}%"></i></div></div></div><button class="btn pri" data-act="newep">＋ New episode (EP. ${S.settings.epNext||21})</button>${es?`<button class="btn" data-act="openep">🎬 Open EP Studio</button>`:`<button class="btn" data-act="settings">Set EP Studio link</button>`}</div>`}
+const clUI=()=>E.checklist?`<div class="card" style="margin-top:10px;padding:10px 12px"><h4 style="margin-bottom:4px">Checklist <span>${clDone(E)}/${E.checklist.length}</span></h4>${E.checklist.map((c,k)=>`<label class="chk" style="margin:4px 0"><input type="checkbox" data-chg="clt" data-k="${k}" ${c.d?'checked':''}> ${esc(c.t)}</label>`).join('')}</div>`:(E.area==='content'?'<button class="btn sm" data-act="addcl" style="margin-top:8px">☑ Add episode checklist</button>':'');
 /* ---------- auto-slot the inbox ---------- */
 const tmin=t=>{const[h,m]=t.split(':').map(Number);return h*60+m},mtime=m=>pad(Math.floor(m/60))+':'+pad(m%60);
 const SLOT_DAY=[9*60,21*60],SLOT_BUF=15,SLOT_PERDAY=3;let AS=null;
