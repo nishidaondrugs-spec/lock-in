@@ -45,3 +45,8 @@ NO MORE OVERWRITING (v2.2)
 Lock In now notices when your plan was changed from somewhere else (another window, Claude through the connector,
 a restored backup) and picks the change up within a few seconds instead of overwriting it. If you edit something at
 the same moment, your edit and the other change are merged item by item.
+
+AUTO-SLOT + NOTES (v2.3)
+- Inbox > "Auto-slot into my free time": Lock In finds gaps in your week (9am-9pm, 15 min clear of other events,
+  max 3 a day), shows you the plan, and pencils the ones you keep. Nothing is final until you confirm.
+- Notes (left menu): a scratchpad with autosave. Start a line with [] and press "Turn [] lines into Inbox tasks".

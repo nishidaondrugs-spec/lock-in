@@ -149,6 +149,10 @@ select option{background:#15142a}
 .dc{background:var(--card2);border:2px solid transparent;border-radius:10px;padding:4px 2px;text-align:center;cursor:pointer;font-size:10px;line-height:1.25}.dc:hover{border-color:rgba(255,255,255,.25)}.dc.sel{border-color:#fbbf24}
 .dc img{width:56px;height:56px;image-rendering:pixelated;display:block;margin:0 auto}.dc small{display:block;color:var(--mut)}
 .dc.t1{box-shadow:inset 0 0 0 1px rgba(96,165,250,.55)}.dc.t2{box-shadow:inset 0 0 0 1px rgba(251,191,36,.8)}
+.notes{display:grid;grid-template-columns:230px 1fr;gap:16px;min-height:440px;margin-top:14px}.nlist{display:flex;flex-direction:column;gap:8px;max-height:68vh;overflow:auto}
+.nitem{padding:9px 11px;border-radius:10px;background:var(--card2);cursor:pointer;border:1px solid transparent}.nitem:hover{border-color:var(--line)}.nitem.on{border-color:var(--acc);background:rgba(139,124,246,.14)}.nitem small{display:block;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ned{display:flex;flex-direction:column;gap:10px}.ned input{font-size:17px;font-weight:600}.ned textarea{flex:1;min-height:360px;resize:vertical;line-height:1.55;font-size:14px}
+.slotrow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}.slotrow:last-child{border:0}.slotrow .when{color:var(--mut);font-size:12px;white-space:nowrap}
 .dc.fx img,.dc.fsx img{filter:brightness(.5) sepia(1) hue-rotate(235deg) saturate(4) drop-shadow(0 0 4px #a855f7)}.up{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}.up:last-child{border:0}.up div{flex:1}.up small{color:var(--mut);display:block}
 .days{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.dchk{display:flex;align-items:center;gap:4px;font-size:12px;text-transform:none;letter-spacing:0;color:var(--txt);background:var(--card2);padding:4px 9px;border-radius:8px;cursor:pointer}.dchk input{width:auto}
 .f label{font-size:11px;color:var(--mut);display:flex;flex-direction:column;gap:4px;text-transform:uppercase;letter-spacing:.8px}
@@ -171,6 +175,7 @@ select option{background:#15142a}
   <button class="nav" data-act="nav" data-v="inbox">📥 Inbox <b id="b-inbox"></b></button>
   <button class="nav" data-act="nav" data-v="content">🎬 Content</button>
   <button class="nav" data-act="nav" data-v="jobs">💼 Jobs</button>
+  <button class="nav" data-act="nav" data-v="notes">📝 Notes</button>
   <button class="nav" data-act="nav" data-v="focus">🎯 Focus</button>
   <div class="sp"></div>
   <div id="mini" data-act="nav" data-v="focus" style="cursor:pointer"><div class="mut" style="font-size:11px">LOCKED IN</div><div class="t" id="minit">25:00</div></div>
@@ -219,23 +224,23 @@ const mk=p=>Object.assign({id:Date.now().toString(36)+Math.random().toString(36)
 
 /* ---------- persistence ---------- */
 let st;
-let SAVING=0,SEQ=0,SNAP=new Map(),_adopting=false;
+let SAVING=0,SEQ=0,SNAP=new Map(),NSNAP=new Map(),_adopting=false;
 const snapOf=items=>new Map((items||[]).map(i=>[i.id,JSON.stringify(i)]));
-function save(){clearTimeout(st);SAVING=1;const my=++SEQ;$('#saved').textContent='Saving…';st=setTimeout(()=>{const snapNow=snapOf(S.items);fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(S)}).then(r=>r.json().then(j=>({c:r.status,j}))).then(({c,j})=>{if(my===SEQ)SAVING=0;if(c===409){adoptServer(j.state,true);return}if(j.fired)Object.assign(S.fired,j.fired);if(typeof j.rev==='number')S._rev=j.rev;SNAP=snapNow;$('#saved').textContent='Saved ✓'}).catch(()=>{if(my===SEQ)SAVING=0;$('#saved').textContent='⚠ not saved';say('Could not save — is the Lock In server running?')})},250)}
+function save(){clearTimeout(st);SAVING=1;const my=++SEQ;$('#saved').textContent='Saving…';st=setTimeout(()=>{const snapNow=snapOf(S.items),nsnapNow=snapOf(S.notes);fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(S)}).then(r=>r.json().then(j=>({c:r.status,j}))).then(({c,j})=>{if(my===SEQ)SAVING=0;if(c===409){adoptServer(j.state,true);return}if(j.fired)Object.assign(S.fired,j.fired);if(typeof j.rev==='number')S._rev=j.rev;SNAP=snapNow;NSNAP=nsnapNow;$('#saved').textContent='Saved ✓'}).catch(()=>{if(my===SEQ)SAVING=0;$('#saved').textContent='⚠ not saved';say('Could not save — is the Lock In server running?')})},250)}
 /* another window / Claude changed your plan -> pick it up instead of overwriting it (3-way merge per item) */
-function mergeItems(sv){const loc=new Map(S.items.map(i=>[i.id,i])),out=[],seen=new Set();
- for(const si of sv.items){seen.add(si.id);const li=loc.get(si.id);
-  if(!SNAP.has(si.id)){out.push(li||si);continue}      // new on the server (or added locally with the same id)
+function mergeBy(local,srv,snap){const loc=new Map(local.map(i=>[i.id,i])),out=[],seen=new Set();
+ for(const si of srv){seen.add(si.id);const li=loc.get(si.id);
+  if(!snap.has(si.id)){out.push(li||si);continue}      // new on the server (or added locally with the same id)
   if(!li)continue;                                      // you deleted it here
-  out.push(JSON.stringify(li)!==SNAP.get(si.id)?li:si)} // you edited it here -> yours; otherwise take the server's
- for(const li of S.items)if(!seen.has(li.id)&&!SNAP.has(li.id))out.push(li);   // you added it here, not saved yet
+  out.push(JSON.stringify(li)!==snap.get(si.id)?li:si)} // you edited it here -> yours; otherwise take the server's
+ for(const li of local)if(!seen.has(li.id)&&!snap.has(li.id))out.push(li);   // you added it here, not saved yet
  return out}
 function adoptServer(sv,conflict){if(!sv||!Array.isArray(sv.items))return;
  const g=S.game,sg=sv.game;if(g&&sg&&sg.dex){g.dex=g.dex||{};for(const k in sg.dex)g.dex[k]=Math.max(g.dex[k]||0,sg.dex[k])}if(!S.game&&sg)S.game=sg;
- const merged=mergeItems(sv);
- S.items=merged;S.settings=Object.assign({},sv.settings,{arenaOpen:(S.settings||{}).arenaOpen});S.top3=sv.top3||S.top3;S.days=sv.days||S.days;S.fired=Object.assign({},sv.fired||{},S.fired||{});S._rev=sv._rev||0;
- const base=snapOf(sv.items);let dirty=!!conflict;for(const i of merged)if(base.get(i.id)!==JSON.stringify(i))dirty=true;if(merged.length!==sv.items.length)dirty=true;
- SNAP=base;softRender(0);if(dirty)save()}
+ const merged=mergeBy(S.items,sv.items,SNAP),mergedN=mergeBy(S.notes||[],sv.notes||[],NSNAP);
+ S.items=merged;S.notes=mergedN;S.settings=Object.assign({},sv.settings,{arenaOpen:(S.settings||{}).arenaOpen});S.top3=sv.top3||S.top3;S.days=sv.days||S.days;S.fired=Object.assign({},sv.fired||{},S.fired||{});S._rev=sv._rev||0;
+ const base=snapOf(sv.items);let dirty=!!conflict;for(const i of merged)if(base.get(i.id)!==JSON.stringify(i))dirty=true;if(merged.length!==sv.items.length)dirty=true;const nbase=snapOf(sv.notes||[]);for(const i of mergedN)if(nbase.get(i.id)!==JSON.stringify(i))dirty=true;if(mergedN.length!==(sv.notes||[]).length)dirty=true;
+ SNAP=base;NSNAP=nbase;softRender(0);if(dirty)save()}
 function pollRev(){if(SAVING||_adopting||!S)return;fetch('/api/rev').then(r=>r.json()).then(j=>{if(typeof j.rev==='number'&&j.rev!==(S._rev||0)&&!SAVING){_adopting=true;fetch('/api/state').then(r=>r.json()).then(sv=>{if(!SAVING)adoptServer(sv,false);_adopting=false}).catch(()=>{_adopting=false})}}).catch(()=>{})}
 function say(t){$$('#toasts .quiet').forEach(x=>x.remove());const d=document.createElement('div');d.className='toast quiet';d.textContent=t;$('#toasts').appendChild(d);setTimeout(()=>d.remove(),3200)}
 
@@ -375,7 +380,7 @@ VIEWS.today=()=>{
   <div style="margin-top:12px"><button class="btn pri" data-act="nav" data-v="focus">🎯 Start focus session</button></div></div>
   <div class="card"><h4>Momentum</h4><div class="stat"><div><span class="flame">${sk?'🔥':'💤'}</span><b>${sk}</b><span class="mut">day streak</span></div><div><span class="flame">🎯</span><b>${sess}</b><span class="mut">sessions today</span></div></div><div class="mut" style="margin-top:8px;font-size:12px">Streak = days you cleared all of your 3.</div></div>
   <div class="card"><h4>Pencilled in <span>${tent.length}</span></h4>${tent.length?tent.slice(0,5).map(i=>row(i,{time:false,date:true})).join(''):'<div class="empty-note">Nothing waiting for a decision.</div>'}${tent.slice(0,5).length?'<div class="mut" style="font-size:12px;margin-top:6px">Confirm when you’re sure, or move them.</div>':''}</div>
-  <div class="card"><h4>Inbox <span>${inb.length}</span></h4>${inb.slice(0,4).map(i=>row(i,{time:false,drag:true,extra:`<button class="btn sm" data-act="pencil" data-when="today" data-id="${i.id}">Today</button><button class="btn sm" data-act="pencil" data-when="tomorrow" data-id="${i.id}">Tmrw</button>`})).join('')||'<div class="empty-note">Empty. Brain dump in the bar above.</div>'}${inb.length>4?`<div style="margin-top:6px"><button class="btn sm" data-act="nav" data-v="inbox">See all ${inb.length}</button></div>`:''}</div>
+  <div class="card"><h4>Inbox <span>${inb.length}</span></h4>${inb.slice(0,4).map(i=>row(i,{time:false,drag:true,extra:`<button class="btn sm" data-act="pencil" data-when="today" data-id="${i.id}">Today</button><button class="btn sm" data-act="pencil" data-when="tomorrow" data-id="${i.id}">Tmrw</button>`})).join('')||'<div class="empty-note">Empty. Brain dump in the bar above.</div>'}<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">${inb.length>4?`<button class="btn sm" data-act="nav" data-v="inbox">See all ${inb.length}</button>`:''}${inb.length?'<button class="btn sm" data-act="autoslot">✨ Auto-slot</button>':''}</div></div>
   <div class="card"><h4>💼 Job hunt</h4><div style="display:flex;justify-content:space-between"><span>Applied this week</span><b>${applied} / ${goal}</b></div><div class="bar" style="margin:8px 0"><i style="width:${Math.min(100,applied/goal*100)}%"></i></div><button class="btn sm" data-act="nav" data-v="jobs">Open job board</button></div>
   <div class="card"><h4>🎬 Content</h4><div class="mut" style="font-size:12px;line-height:1.8">${cs.map(([n,c])=>`${n} <b style="color:var(--txt)">${c}</b>`).join(' · ')}</div>${nextPost?`<div style="margin-top:8px">Next post: <b>${esc(nextPost.title)}</b> <span class="mut">· ${relDay(nextPost.date)}</span></div>`:'<div class="mut" style="margin-top:8px">No post scheduled.</div>'}<div style="margin-top:8px"><button class="btn sm" data-act="nav" data-v="content">Open pipeline</button></div></div>
   </div></div>`};
@@ -401,7 +406,7 @@ VIEWS.inbox=()=>{
   const inb=inboxItems(),tent=S.items.filter(i=>i.tentative&&i.date&&!i.done).sort((a,b)=>a.date.localeCompare(b.date));
   const rowI=i=>`<div class="row"><span class="dot" ${dotc(i)}></span><span class="ttl" data-act="edit" data-id="${i.id}">${ti(i)}</span>
   <span class="mut" style="font-size:12px">pencil in →</span><button class="btn sm" data-act="pencil" data-when="today" data-id="${i.id}">Today</button><button class="btn sm" data-act="pencil" data-when="tomorrow" data-id="${i.id}">Tomorrow</button><button class="btn sm" data-act="pencil" data-when="sat" data-id="${i.id}">Weekend</button><input type="date" style="width:140px;padding:3px 6px" data-chg="setdate" data-id="${i.id}"><button class="btn sm bad" data-act="del" data-id="${i.id}">✕</button></div>`;
-  return `<h2>Inbox</h2><p class="mut" style="margin:4px 0 16px">Drop things here before you know when. Decide later — pencil a date, then confirm it.</p>
+  return `<div style="display:flex;align-items:center;gap:12px"><h2 style="flex:1">Inbox</h2>${inb.length?'<button class="btn pri" data-act="autoslot">✨ Auto-slot into my free time</button>':''}</div><p class="mut" style="margin:4px 0 16px">Drop things here before you know when. Decide later — pencil a date, then confirm it.</p>
   <div class="card"><h4>Undated <span>${inb.length}</span></h4>${inb.map(rowI).join('')||'<div class="empty-note">Inbox zero. Anything you type in the bar without a date lands here.</div>'}</div>
   <div class="card" style="margin-top:18px"><h4>Pencilled in — waiting for you to confirm <span>${tent.length}</span></h4>${tent.map(i=>row(i,{date:true,extra:`<button class="btn sm" data-act="toinbox" data-id="${i.id}">Back to inbox</button>`})).join('')||'<div class="empty-note">Nothing pencilled. Drag inbox items onto the calendar, or use the buttons above.</div>'}</div>`};
 
@@ -441,6 +446,7 @@ VIEWS.focus=()=>{
 
 /* ---------- render ---------- */
 function render(){
+  if(view==='notes'&&/^n_(title|body)$/.test((document.activeElement||{}).id||''))return;
   $$('.nav[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===view));
   $('#b-inbox').textContent=inboxItems().length||'';
   const _old=$('#tlscroll');if(_old)tlScroll=_old.scrollTop;
@@ -530,6 +536,13 @@ const ACT={
  partner:(el)=>{const g=gs();g.partner=el.dataset.k;G.dirty=true;save();drawDex();say('Partner set')},
  lead:(el)=>{const g=gs();g.lead=el.dataset.v;G.hp=null;G.dirty=true;save();drawDex()},
  catch:()=>catchWild(),
+ autoslot:()=>openAutoSlot(),
+ asskip:(el)=>{AS=AS.filter(x=>x.it.id!==el.dataset.id);drawAuto()},
+ asapply:()=>{let n=0;for(const x of AS){if(!x.p)continue;const i=byId(x.it.id);if(!i)continue;Object.assign(i,{date:x.p.date,time:x.p.time,endTime:x.p.endTime,tentative:true});if(i.remind==null)i.remind=S.settings.remindDefault;n++}AS=null;save();closeModal();render();say(n+' pencilled in — confirm the ones you want')},
+ newnote:()=>{S.notes=S.notes||[];const n={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),title:'',body:'',created:Date.now(),updated:Date.now()};S.notes.push(n);NOTE=n.id;save();render();$('#n_title')?.focus()},
+ opennote:(el)=>{NOTE=el.dataset.id;render()},
+ delnote:(el)=>{if(el.dataset.arm!=='1'){el.dataset.arm='1';el.textContent='Click again to delete';setTimeout(()=>{if(el.isConnected){el.dataset.arm='';el.textContent='Delete note'}},3000);return}S.notes=(S.notes||[]).filter(x=>x.id!==NOTE);NOTE=null;save();render();say('Note deleted')},
+ note2tasks:()=>{const n=(S.notes||[]).find(x=>x.id===NOTE);if(!n)return;let c=0;n.body=(n.body||'').split('\n').map(l=>{const m=l.match(/^(\s*)\[\s*\]\s*(.+)$/);if(!m)return l;const it=addQuick(m[2]);if(!it)return l;c++;return m[1]+'[→] '+m[2]}).join('\n');n.updated=Date.now();save();render();say(c?c+' task'+(c>1?'s':'')+' sent to your Inbox':'No [] lines found — start a line with []')},
  arenatoggle:()=>{S.settings.arenaOpen=S.settings.arenaOpen===false;save()},
  buyup:(el)=>{const g=gs(),k=el.dataset.k,c=upCost(g,k);if(g.gold>=c){g.gold-=c;g.up[k]++;G.dirty=true;save();drawShop();say('Upgraded!')}else say('Not enough gold yet — finish tasks to earn more')},
  tlprev:()=>{tlDay=iso(addDays(pISO(tlDay),-1));render()},tlnext:()=>{tlDay=iso(addDays(pISO(tlDay),1));render()},tltoday:()=>{tlDay=iso(new Date());tlScroll=null;render()},
@@ -713,6 +726,32 @@ function arenaFrame(ts){requestAnimationFrame(arenaFrame);if(!S||document.hidden
   const dt=Math.min(100,ts-(G.last||ts));G.last=ts;if(G.bannerT>0)G.bannerT-=dt;const W=Math.max(300,$('#arena').clientWidth);if(c.width!==W)c.width=W;
   arenaUpdate(dt,ts,W);if(open)arenaDraw(ts,c,W,c.height);if(ts-G.hudAt>250){G.hudAt=ts;hudTick();$('#hfold').textContent=open?'▾':'▴'}}
 setInterval(()=>{if(G.dirty&&S){G.dirty=false;save()}},15000);
+/* ---------- auto-slot the inbox ---------- */
+const tmin=t=>{const[h,m]=t.split(':').map(Number);return h*60+m},mtime=m=>pad(Math.floor(m/60))+':'+pad(m%60);
+const SLOT_DAY=[9*60,21*60],SLOT_BUF=15,SLOT_PERDAY=3;let AS=null;
+function planSlots(items,days=10){const out=[],used={},cnt={},now=new Date();
+ for(const it of items){const dur=it.area==='jobs'?45:60;let placed=null;
+  for(let d=0;d<days&&!placed;d++){const ds=iso(addDays(now,d));if((cnt[ds]||0)>=SLOT_PERDAY)continue;
+   const busy=itemsOn(ds).filter(x=>x.time&&!x.done).map(x=>{const a=tmin(x.time),b=x.endTime?tmin(x.endTime):a+60;return[a-SLOT_BUF,Math.max(b,a+15)+SLOT_BUF]}).concat(used[ds]||[]).sort((a,b)=>a[0]-b[0]);
+   let cur=SLOT_DAY[0];if(d===0)cur=Math.max(cur,Math.ceil((now.getHours()*60+now.getMinutes()+15)/15)*15);
+   for(const[bs,be] of busy){if(bs-cur>=dur)break;cur=Math.max(cur,be)}
+   if(cur+dur<=SLOT_DAY[1]){placed={date:ds,time:mtime(cur),endTime:mtime(cur+dur)};(used[ds]=used[ds]||[]).push([cur-SLOT_BUF,cur+dur+SLOT_BUF]);cnt[ds]=(cnt[ds]||0)+1}}
+  out.push({it,p:placed})}
+ return out}
+function openAutoSlot(){const inb=inboxItems().filter(i=>!i.repeat);if(!inb.length){say('Inbox is empty — nothing to slot');return}AS=planSlots(inb);drawAuto()}
+function drawAuto(){const ok=AS.filter(x=>x.p),no=AS.filter(x=>!x.p);
+ $('#modal').innerHTML=`<div class="mcard"><h3>✨ Auto-slot</h3><p class="mut" style="margin:0 0 10px;font-size:13px">I looked at your week and found gaps (9am–9pm, 15 min clear of anything else, max ${SLOT_PERDAY} a day). Nothing is final: these are <b>pencilled in</b> until you confirm each one.</p>
+ ${ok.map(x=>`<div class="slotrow"><span class="dot" ${dotc(x.it)}></span><span style="flex:1">${ti(x.it)}</span><span class="when">${relDay(x.p.date)} · ${fmtRange(x.p)}</span><button class="btn sm bad" data-act="asskip" data-id="${x.it.id}">✕</button></div>`).join('')||'<div class="empty-note">No free gaps found in the next 10 days.</div>'}
+ ${no.length?`<p class="mut" style="font-size:12px;margin-top:8px">${no.length} didn't fit in the next 10 days and will stay in the Inbox.</p>`:''}
+ <div class="mbtn">${ok.length?`<button class="btn pri" data-act="asapply">Pencil in ${ok.length}</button>`:''}<button class="btn" data-act="closeModal">Cancel</button></div></div>`;$('#modal').classList.add('on')}
+/* ---------- notes ---------- */
+let NOTE=null;
+VIEWS.notes=()=>{const ns=(S.notes||[]).slice().sort((a,b)=>b.updated-a.updated);if(!NOTE||!ns.some(n=>n.id===NOTE))NOTE=ns[0]?ns[0].id:null;const n=ns.find(x=>x.id===NOTE);
+ return `<h2>Notes</h2><p class="mut" style="margin:4px 0">A scratchpad for thinking. Start a line with <b>[]</b> and it can become an Inbox task (dates like “fri 3pm” work too).</p>
+ <div class="notes"><div class="nlist"><button class="btn pri" data-act="newnote">＋ New note</button>${ns.map(x=>`<div class="nitem ${x.id===NOTE?'on':''}" data-act="opennote" data-id="${x.id}"><b>${esc(x.title||'Untitled')}</b><small>${esc(((x.body||'').split('\n').find(l=>l.trim())||'Empty').slice(0,60))}</small></div>`).join('')||'<div class="empty-note">No notes yet.</div>'}</div>
+ <div class="ned">${n?`<input type="text" id="n_title" value="${esc(n.title)}" placeholder="Title"><textarea id="n_body" placeholder="Write anything…">${esc(n.body)}</textarea><div class="mbtn" style="margin:0"><button class="btn" data-act="note2tasks">⚡ Turn [] lines into Inbox tasks</button><span style="flex:1"></span><button class="btn bad" data-act="delnote">Delete note</button></div>`:'<div class="empty-note">Create a note to start writing.</div>'}</div></div>`};
+document.addEventListener('input',e=>{const el=e.target;if(el.id!=='n_title'&&el.id!=='n_body')return;const n=(S.notes||[]).find(x=>x.id===NOTE);if(!n)return;
+ if(el.id==='n_title')n.title=el.value;else n.body=el.value;n.updated=Date.now();save();const li=$('.nitem.on');if(li){li.querySelector('b').textContent=n.title||'Untitled';li.querySelector('small').textContent=((n.body||'').split('\n').find(l=>l.trim())||'Empty').slice(0,60)}});
 /* ---------- connector: commands from Claude (through the local MCP server) ---------- */
 const DRE=/^\d{4}-\d\d-\d\d$/,TRE=/^([01]?\d|2[0-3]):[0-5]\d$/,APPL={};let _qBusy=false;
 function cmdFields(f){const o={};if(!f)return o;
@@ -747,7 +786,7 @@ function pollQueue(){if(_qBusy||!S)return;_qBusy=true;fetch('/api/queue',{header
   setTimeout(()=>fetch('/api/queue/ack',{method:'POST',headers:{'Content-Type':'application/json','X-LockIn':'1'},body:JSON.stringify({results})}).then(()=>{_qBusy=false;if(changed){softRender(0);say('Claude updated your plan')}}).catch(()=>{_qBusy=false}),500)}).catch(()=>{_qBusy=false})}
 /* ---------- boot ---------- */
 function tickClock(){const d=new Date();$('#clock').textContent=DOW3[(d.getDay()+6)%7]+' '+pad(d.getHours())+':'+pad(d.getMinutes());const nl=$('#nowl'),tlx=$('.tl');if(nl&&tlx)nl.style.top=((d.getHours()*60+d.getMinutes()-(+tlx.dataset.lo))/60*PPH)+'px';const b=$('#bigclock');if(b)b.textContent=pad(d.getHours())+':'+pad(d.getMinutes())}
-fetch('/api/state').then(r=>r.json()).then(j=>{S=j;S._rev=S._rev||0;SNAP=snapOf(S.items);S.fired=S.fired||{};S.days=S.days||{};S.top3=S.top3||{date:'',ids:[]};initF();render();tickClock();checkReminders();
+fetch('/api/state').then(r=>r.json()).then(j=>{S=j;S._rev=S._rev||0;S.notes=S.notes||[];SNAP=snapOf(S.items);NSNAP=snapOf(S.notes);S.fired=S.fired||{};S.days=S.days||{};S.top3=S.top3||{date:'',ids:[]};initF();render();tickClock();checkReminders();
   setInterval(tickClock,15000);setInterval(checkReminders,15000);setInterval(pollQueue,3000);pollQueue();setInterval(pollRev,3000);let pingOk=true;setInterval(()=>fetch('/api/ping').then(()=>{if(!pingOk)location.reload();pingOk=true}).catch(()=>{pingOk=false}),10000);
   setInterval(()=>{if(F.running){const l=Math.round((F.end-Date.now())/1000);F.left=Math.max(0,l);if(l<=0)fDone();else paint()}},500);
   requestAnimationFrame(arenaFrame);
