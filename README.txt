@@ -40,3 +40,8 @@ Lets the Claude desktop app read your Lock In plan and add / move / complete thi
   Nothing is sent to the internet by the connector. Claude only sees what you ask it about in a chat.
 - Lock In has to be running. If the window is closed when Claude adds something, Lock In opens it to apply the change.
 - Manual setup / Claude Code:  claude mcp add lockin -- python "%LOCALAPPDATA%\LockIn\app\mcp_lockin.py"
+
+NO MORE OVERWRITING (v2.2)
+Lock In now notices when your plan was changed from somewhere else (another window, Claude through the connector,
+a restored backup) and picks the change up within a few seconds instead of overwriting it. If you edit something at
+the same moment, your edit and the other change are merged item by item.

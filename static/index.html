@@ -219,7 +219,24 @@ const mk=p=>Object.assign({id:Date.now().toString(36)+Math.random().toString(36)
 
 /* ---------- persistence ---------- */
 let st;
-function save(){clearTimeout(st);$('#saved').textContent='Saving…';st=setTimeout(()=>fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(S)}).then(r=>r.json()).then(j=>{if(j.fired)Object.assign(S.fired,j.fired);$('#saved').textContent='Saved ✓'}).catch(()=>{$('#saved').textContent='⚠ not saved';say('Could not save — is the Lock In server running?')}),250)}
+let SAVING=0,SEQ=0,SNAP=new Map(),_adopting=false;
+const snapOf=items=>new Map((items||[]).map(i=>[i.id,JSON.stringify(i)]));
+function save(){clearTimeout(st);SAVING=1;const my=++SEQ;$('#saved').textContent='Saving…';st=setTimeout(()=>{const snapNow=snapOf(S.items);fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(S)}).then(r=>r.json().then(j=>({c:r.status,j}))).then(({c,j})=>{if(my===SEQ)SAVING=0;if(c===409){adoptServer(j.state,true);return}if(j.fired)Object.assign(S.fired,j.fired);if(typeof j.rev==='number')S._rev=j.rev;SNAP=snapNow;$('#saved').textContent='Saved ✓'}).catch(()=>{if(my===SEQ)SAVING=0;$('#saved').textContent='⚠ not saved';say('Could not save — is the Lock In server running?')})},250)}
+/* another window / Claude changed your plan -> pick it up instead of overwriting it (3-way merge per item) */
+function mergeItems(sv){const loc=new Map(S.items.map(i=>[i.id,i])),out=[],seen=new Set();
+ for(const si of sv.items){seen.add(si.id);const li=loc.get(si.id);
+  if(!SNAP.has(si.id)){out.push(li||si);continue}      // new on the server (or added locally with the same id)
+  if(!li)continue;                                      // you deleted it here
+  out.push(JSON.stringify(li)!==SNAP.get(si.id)?li:si)} // you edited it here -> yours; otherwise take the server's
+ for(const li of S.items)if(!seen.has(li.id)&&!SNAP.has(li.id))out.push(li);   // you added it here, not saved yet
+ return out}
+function adoptServer(sv,conflict){if(!sv||!Array.isArray(sv.items))return;
+ const g=S.game,sg=sv.game;if(g&&sg&&sg.dex){g.dex=g.dex||{};for(const k in sg.dex)g.dex[k]=Math.max(g.dex[k]||0,sg.dex[k])}if(!S.game&&sg)S.game=sg;
+ const merged=mergeItems(sv);
+ S.items=merged;S.settings=Object.assign({},sv.settings,{arenaOpen:(S.settings||{}).arenaOpen});S.top3=sv.top3||S.top3;S.days=sv.days||S.days;S.fired=Object.assign({},sv.fired||{},S.fired||{});S._rev=sv._rev||0;
+ const base=snapOf(sv.items);let dirty=!!conflict;for(const i of merged)if(base.get(i.id)!==JSON.stringify(i))dirty=true;if(merged.length!==sv.items.length)dirty=true;
+ SNAP=base;softRender(0);if(dirty)save()}
+function pollRev(){if(SAVING||_adopting||!S)return;fetch('/api/rev').then(r=>r.json()).then(j=>{if(typeof j.rev==='number'&&j.rev!==(S._rev||0)&&!SAVING){_adopting=true;fetch('/api/state').then(r=>r.json()).then(sv=>{if(!SAVING)adoptServer(sv,false);_adopting=false}).catch(()=>{_adopting=false})}}).catch(()=>{})}
 function say(t){$$('#toasts .quiet').forEach(x=>x.remove());const d=document.createElement('div');d.className='toast quiet';d.textContent=t;$('#toasts').appendChild(d);setTimeout(()=>d.remove(),3200)}
 
 /* ---------- quick-add parser ---------- */
@@ -730,8 +747,8 @@ function pollQueue(){if(_qBusy||!S)return;_qBusy=true;fetch('/api/queue',{header
   setTimeout(()=>fetch('/api/queue/ack',{method:'POST',headers:{'Content-Type':'application/json','X-LockIn':'1'},body:JSON.stringify({results})}).then(()=>{_qBusy=false;if(changed){softRender(0);say('Claude updated your plan')}}).catch(()=>{_qBusy=false}),500)}).catch(()=>{_qBusy=false})}
 /* ---------- boot ---------- */
 function tickClock(){const d=new Date();$('#clock').textContent=DOW3[(d.getDay()+6)%7]+' '+pad(d.getHours())+':'+pad(d.getMinutes());const nl=$('#nowl'),tlx=$('.tl');if(nl&&tlx)nl.style.top=((d.getHours()*60+d.getMinutes()-(+tlx.dataset.lo))/60*PPH)+'px';const b=$('#bigclock');if(b)b.textContent=pad(d.getHours())+':'+pad(d.getMinutes())}
-fetch('/api/state').then(r=>r.json()).then(j=>{S=j;S.fired=S.fired||{};S.days=S.days||{};S.top3=S.top3||{date:'',ids:[]};initF();render();tickClock();checkReminders();
-  setInterval(tickClock,15000);setInterval(checkReminders,15000);setInterval(pollQueue,3000);pollQueue();let pingOk=true;setInterval(()=>fetch('/api/ping').then(()=>{if(!pingOk)location.reload();pingOk=true}).catch(()=>{pingOk=false}),10000);
+fetch('/api/state').then(r=>r.json()).then(j=>{S=j;S._rev=S._rev||0;SNAP=snapOf(S.items);S.fired=S.fired||{};S.days=S.days||{};S.top3=S.top3||{date:'',ids:[]};initF();render();tickClock();checkReminders();
+  setInterval(tickClock,15000);setInterval(checkReminders,15000);setInterval(pollQueue,3000);pollQueue();setInterval(pollRev,3000);let pingOk=true;setInterval(()=>fetch('/api/ping').then(()=>{if(!pingOk)location.reload();pingOk=true}).catch(()=>{pingOk=false}),10000);
   setInterval(()=>{if(F.running){const l=Math.round((F.end-Date.now())/1000);F.left=Math.max(0,l);if(l<=0)fDone();else paint()}},500);
   requestAnimationFrame(arenaFrame);
   $('#arenac').addEventListener('click',e=>{const t=e.target,r=t.getBoundingClientRect(),cx=(e.clientX-r.left)*(t.width/r.width);if(gs().wild&&cx>t.width-170)catchWild()});

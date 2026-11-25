@@ -409,6 +409,9 @@ class H(BaseHTTPRequestHandler):
             qid = (self.path.split('qid=') + [''])[1].split('&')[0]
             with QLOCK:
                 return self._send(200, {'done': qid in RESULTS, 'result': RESULTS.get(qid)})
+        if p == '/api/rev':
+            with LOCK:
+                return self._send(200, {'rev': int(load().get('_rev') or 0)})
         if p == '/api/version':
             return self._send(200, {'version': current_version(), 'data': DATA})
         if p == '/api/ping':
@@ -435,6 +438,14 @@ class H(BaseHTTPRequestHandler):
         last_ping = time.time()
         with LOCK:
             cur = load()
+            cur_rev = int(cur.get('_rev') or 0)
+            cr = body.get('_rev')
+            try:
+                stale = cr is not None and int(cr) != cur_rev
+            except Exception:
+                stale = False
+            if stale:   # someone else (another window, the connector...) saved since this page last synced
+                return self._send(409, {'conflict': True, 'state': cur})
             merged = dict(body.get('fired') or {})
             for k, v in (cur.get('fired') or {}).items():
                 if k not in merged or v > merged[k]:
@@ -442,8 +453,9 @@ class H(BaseHTTPRequestHandler):
             live = {i.get('id') for i in body['items']}
             merged = {k: v for k, v in merged.items() if k.split('@')[0] in live}
             body['fired'] = merged
+            body['_rev'] = cur_rev + 1
             save(body)
-        self._send(200, {'ok': True, 'fired': merged})
+        self._send(200, {'ok': True, 'fired': merged, 'rev': cur_rev + 1})
 
     def do_POST(self):
         if self.path.split('?')[0] == '/api/update':
