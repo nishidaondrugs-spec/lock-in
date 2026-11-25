@@ -497,7 +497,7 @@ function openSettings(){const s=S.settings;
   <div class="f" style="grid-template-columns:1fr"><label>Job searches (one per line: role | place)<textarea id="s_jobs" rows="4">${esc((s.jobSearches||[]).map(x=>x.q+' | '+x.l).join('\n'))}</textarea></label></div>
   <div class="f" style="grid-template-columns:1fr"><label>Update address (optional — where new versions are published)<input type="text" id="s_upd" value="${esc(s.updateUrl||'')}" placeholder="https://raw.githubusercontent.com/you/lock-in/main"></label></div>
   <div class="f"><label>Reels per week goal<input type="number" id="s_reel" value="${s.reelGoal||6}"></label><label>Next episode number<input type="number" id="s_ep" value="${s.epNext||21}"></label></div>
-  <div class="f" style="grid-template-columns:1fr"><label>EP Studio — web address or file path on this computer<input type="text" id="s_epstudio" value="${esc(s.epStudio||'')}" placeholder="http://localhost:5000  or  C:\\Users\\you\\EP_Studio\\index.html"></label></div>
+  <div class="f" style="grid-template-columns:1fr"><label>EP Studio — web address or file path on this computer<input type="text" id="s_epstudio" value="${esc(s.epStudio||'')}" placeholder="http://127.0.0.1:5055  or  C:\\Users\\you\\EP_Studio\\index.html"></label></div>
   <label class="chk"><input type="checkbox" id="s_auto" ${s.autoUpdate!==false?'checked':''}> Install updates automatically (your data is never touched)</label>
   <div class="mbtn" style="margin:0 0 4px"><button class="btn" data-act="checkupdate">Check for updates</button><label class="btn" style="cursor:pointer">⬆ Restore a backup<input type="file" id="s_imp" accept=".json" data-chg="import" style="display:none"></label><span class="mut" id="verline" style="align-self:center;font-size:12px"></span></div>
   <div class="mbtn"><button class="btn pri" data-act="saveSettings">Save</button><button class="btn" data-act="closeModal">Cancel</button><a class="btn" href="/api/export" download>⬇ Backup</a><span style="flex:1"></span><button class="btn bad" data-act="quit">Quit Lock In</button></div>
@@ -734,7 +734,7 @@ function arenaFrame(ts){requestAnimationFrame(arenaFrame);if(!S||document.hidden
   arenaUpdate(dt,ts,W);if(open)arenaDraw(ts,c,W,c.height);if(ts-G.hudAt>250){G.hudAt=ts;hudTick();$('#hfold').textContent=open?'▾':'▴'}}
 setInterval(()=>{if(G.dirty&&S){G.dirty=false;save()}},15000);
 /* ---------- content: episode checklist, weekly reel counter, EP Studio link ---------- */
-const EP_STEPS=['Pick the next follower from the queue','Photo cut-out saved (ChatGPT)','Record the spin (Record mode)','Edit in CapCut (memes + pacing)','Accept the card on the VDS site','Post it','Log views, shares and sign-ups after 24h'];
+const EP_STEPS=['Pick the next follower from the queue','Photo cut-out saved (ChatGPT)','Spin and record in EP Studio (about 8 min)','Check memes + captions, render the video in EP Studio','Accept the card on the VDS site','Post it','Log views, shares and sign-ups after 24h'];
 const clDone=i=>(i.checklist||[]).filter(c=>c.d).length;
 const weekStart=()=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return d.getTime()};
 const postedThisWeek=()=>S.items.filter(i=>i.stage==='posted'&&i.postedAt&&i.postedAt>=weekStart()).length;
@@ -801,7 +801,7 @@ function pollQueue(){if(_qBusy||!S)return;_qBusy=true;fetch('/api/queue',{header
   setTimeout(()=>fetch('/api/queue/ack',{method:'POST',headers:{'Content-Type':'application/json','X-LockIn':'1'},body:JSON.stringify({results})}).then(()=>{_qBusy=false;if(changed){softRender(0);say('Claude updated your plan')}}).catch(()=>{_qBusy=false}),500)}).catch(()=>{_qBusy=false})}
 /* ---------- boot ---------- */
 function tickClock(){const d=new Date();$('#clock').textContent=DOW3[(d.getDay()+6)%7]+' '+pad(d.getHours())+':'+pad(d.getMinutes());const nl=$('#nowl'),tlx=$('.tl');if(nl&&tlx)nl.style.top=((d.getHours()*60+d.getMinutes()-(+tlx.dataset.lo))/60*PPH)+'px';const b=$('#bigclock');if(b)b.textContent=pad(d.getHours())+':'+pad(d.getMinutes())}
-fetch('/api/state').then(r=>r.json()).then(j=>{S=j;S._rev=S._rev||0;S.notes=S.notes||[];SNAP=snapOf(S.items);NSNAP=snapOf(S.notes);S.fired=S.fired||{};S.days=S.days||{};S.top3=S.top3||{date:'',ids:[]};initF();render();tickClock();checkReminders();
+fetch('/api/state').then(r=>r.json()).then(j=>{S=j;S._rev=S._rev||0;if(S.settings&&S.settings.epStudio===undefined)S.settings.epStudio='http://127.0.0.1:5055';S.notes=S.notes||[];SNAP=snapOf(S.items);NSNAP=snapOf(S.notes);S.fired=S.fired||{};S.days=S.days||{};S.top3=S.top3||{date:'',ids:[]};initF();render();tickClock();checkReminders();
   setInterval(tickClock,15000);setInterval(checkReminders,15000);setInterval(pollQueue,3000);pollQueue();setInterval(pollRev,3000);let pingOk=true;setInterval(()=>fetch('/api/ping').then(()=>{if(!pingOk)location.reload();pingOk=true}).catch(()=>{pingOk=false}),10000);
   setInterval(()=>{if(F.running){const l=Math.round((F.end-Date.now())/1000);F.left=Math.max(0,l);if(l<=0)fDone();else paint()}},500);
   requestAnimationFrame(arenaFrame);

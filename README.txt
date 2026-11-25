@@ -53,6 +53,6 @@ AUTO-SLOT + NOTES (v2.3)
 
 CONTENT + EP STUDIO (v2.4)
 - Content view: "New episode" makes "EP. N turning my followers into cards" with a 7-step checklist (follower, cut-out,
-  record, CapCut edit, accept card, post, log after 24h). Ticking "Post it" moves it to Posted.
+  spin+record and render in EP Studio, accept card, post, log after 24h). Ticking "Post it" moves it to Posted.
 - "Reels posted this week x/6" counter (also on Today). Set your goal and the next EP number in Settings.
-- "Open EP Studio" button: in Settings put EP Studio's web address (http://...) or the file path on this computer.
+- "Open EP Studio" button: in Settings it defaults to http://127.0.0.1:5055 (EP Studio must be running: double-click its run.bat first).
