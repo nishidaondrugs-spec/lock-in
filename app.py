@@ -65,7 +65,7 @@ DEFAULT_UPDATE_URL = 'https://raw.githubusercontent.com/nishidaondrugs-spec/lock
 DEFAULT_SETTINGS = {
     'name': '', 'openOnWake': True, 'focusMin': 25, 'breakMin': 5,
     'remindDefault': 10, 'jobGoal': 5, 'updateUrl': DEFAULT_UPDATE_URL, 'autoUpdate': True,
-    'jobSearches': [], 'epStudio': 'http://127.0.0.1:5055', 'epNext': 21, 'reelGoal': 6,
+    'jobSearches': [], 'epStudio': 'http://127.0.0.1:5055', 'epNext': 21, 'reelGoal': 6, 'gymGoal': 4, 'gymUrl': '',
 }
 
 

@@ -56,3 +56,8 @@ CONTENT + EP STUDIO (v2.4)
   spin+record and render in EP Studio, accept card, post, log after 24h). Ticking "Post it" moves it to Posted.
 - "Reels posted this week x/6" counter (also on Today). Set your goal and the next EP number in Settings.
 - "Open EP Studio" button: in Settings it defaults to http://127.0.0.1:5055 (EP Studio must be running: double-click its run.bat first).
+
+GYM + VERTFORM (v2.6)
+- Today > Momentum card: "Gym this week n/goal", "+ Gym session" (makes a Gym item you can time and remind) and "Open VERTFORM".
+- Anything with gym, lift or workout in the title counts when you tick it done (repeating ones count per day).
+- Settings: gym sessions per week goal, and your VERTFORM web address.
