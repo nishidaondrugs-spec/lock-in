@@ -568,6 +568,7 @@ function openSettings(){const s=S.settings;
   <div class="f" style="grid-template-columns:1fr"><label>Job searches (one per line: role | place)<textarea id="s_jobs" rows="4">${esc((s.jobSearches||[]).map(x=>x.q+' | '+x.l).join('\n'))}</textarea></label></div>
   <div class="f lo" style="grid-template-columns:1fr"><label>Update address (optional — where new versions are published)<input type="text" id="s_upd" value="${esc(s.updateUrl||'')}" placeholder="https://raw.githubusercontent.com/you/lock-in/main"></label></div>
   <div class="f"><label>Reels per week goal<input type="number" id="s_reel" value="${s.reelGoal||6}"></label><label>Next episode number<input type="number" id="s_ep" value="${s.epNext||21}"></label></div>
+  <div class="f" style="grid-template-columns:1fr"><label>New task with no date →<select id="s_autoslot"><option value="week" ${(s.autoSlot||'week')==='week'?'selected':''}>Pencil into the best free time in the next 7 days</option><option value="today" ${s.autoSlot==='today'?'selected':''}>Pencil into free time today only</option><option value="off" ${s.autoSlot==='off'?'selected':''}>Leave it in the Inbox</option></select></label></div>
   <div class="f"><label>Gym sessions per week goal<input type="number" id="s_gymgoal" value="${s.gymGoal||4}"></label><label>VERTFORM web address<input type="text" id="s_gymurl" value="${esc(s.gymUrl||'')}" placeholder="https://..."></label></div>
   <div class="f lo" style="grid-template-columns:1fr"><label>EP Studio — web address or file path on this computer<input type="text" id="s_epstudio" value="${esc(s.epStudio||'')}" placeholder="http://127.0.0.1:5055  or  C:\\Users\\you\\EP_Studio\\index.html"></label></div>
   <label class="chk lo"><input type="checkbox" id="s_auto" ${s.autoUpdate!==false?'checked':''}> Install updates automatically (your data is never touched)</label>
@@ -645,7 +646,7 @@ const ACT={
  cutAfter:()=>{const i=byId(E.id),oc=E._occ;if(!i)return;if(oc<=i.date){S.items=S.items.filter(x=>x.id!==i.id)}else{i.until=iso(addDays(pISO(oc),-1))}save();closeModal();render();say('Deleted this and all after')},
  delEdit:()=>{const id=E.id;closeModal();ACT.del(null,id)},
  settings:()=>openSettings(),
- saveSettings:()=>{const s=S.settings;s.name=$('#s_name').value.trim();s.jobGoal=+$('#s_goal').value||5;s.focusMin=+$('#s_focus').value||25;s.breakMin=+$('#s_break').value||5;s.remindDefault=+$('#s_rem').value||0;s.openOnWake=$('#s_wake').checked;s.updateUrl=$('#s_upd').value.trim();s.autoUpdate=$('#s_auto').checked;s.reelGoal=+$('#s_reel').value||6;s.epNext=+$('#s_ep').value||21;s.epStudio=$('#s_epstudio').value.trim();s.gymGoal=+$('#s_gymgoal').value||4;s.gymUrl=$('#s_gymurl').value.trim();
+ saveSettings:()=>{const s=S.settings;s.name=$('#s_name').value.trim();s.jobGoal=+$('#s_goal').value||5;s.focusMin=+$('#s_focus').value||25;s.breakMin=+$('#s_break').value||5;s.remindDefault=+$('#s_rem').value||0;s.openOnWake=$('#s_wake').checked;s.updateUrl=$('#s_upd').value.trim();s.autoUpdate=$('#s_auto').checked;s.reelGoal=+$('#s_reel').value||6;s.epNext=+$('#s_ep').value||21;s.epStudio=$('#s_epstudio').value.trim();s.gymGoal=+$('#s_gymgoal').value||4;s.autoSlot=$('#s_autoslot').value;s.gymUrl=$('#s_gymurl').value.trim();
    s.jobSearches=$('#s_jobs').value.split('\n').map(l=>l.split('|').map(x=>x.trim())).filter(a=>a[0]).map(a=>({q:a[0],l:a[1]||'London'}));initF();save();closeModal();render()},
  checkupdate:()=>{const url=$('#s_upd').value.trim();say('Checking…');fetch('/api/update',{method:'POST',body:JSON.stringify({url,apply:true})}).then(r=>r.json()).then(j=>{if(j.status==='no-url')say('Add an update address first');else if(j.status==='current')say('Up to date (v'+j.version+')');else if(j.status==='updated'){say('Updated to v'+j.remote+' — restarting…')}else say('Update failed: '+(j.error||'unknown'))}).catch(e=>say('Lock In did not answer ('+(e&&e.message?e.message:'no response')+'). Close it fully (stop_lockin.bat) and start it again.'))},
  quit:()=>{if(confirm('Quit Lock In completely? Reminders stop until you start it again.'))fetch('/api/quit',{method:'POST'}).finally(()=>window.close())},
@@ -667,7 +668,7 @@ document.addEventListener('change',e=>{const el=e.target;
 document.addEventListener('keydown',e=>{
   const el=e.target,typing=/INPUT|TEXTAREA|SELECT/.test(el.tagName);
   if(e.key==='Enter'&&el.tagName==='INPUT'){
-    if(el.id==='capin'&&el.value.trim()){const it=addQuick(el.value);el.value='';if(it){say(it.repeat?`Added · ${repLabel(it.repeat)}${it.time?' '+fmtRange(it):''}`:it.date?`Added · ${it.tentative?'pencilled ':''}${relDay(it.date)}${it.time?' '+fmtRange(it):''}`:it.stage?'Added to '+AREAS[it.area].n+' board':'Added to Inbox');render()}}
+    if(el.id==='capin'&&el.value.trim()){const it=addQuick(el.value);el.value='';if(it){const ap=autoPlace(it);if(ap){save();render();say(ap.p?`Pencilled in · ${relDay(ap.p.date)} ${fmtRange(ap.p)} — move it if you like`:`Added to Inbox · no free gap in the next ${ap.none} day${ap.none>1?'s':''}`);return}say(it.repeat?`Added · ${repLabel(it.repeat)}${it.time?' '+fmtRange(it):''}`:it.date?`Added · ${it.tentative?'pencilled ':''}${relDay(it.date)}${it.time?' '+fmtRange(it):''}`:it.stage?'Added to '+AREAS[it.area].n+' board':'Added to Inbox');render()}}
     else if(el.id==='dayAdd'&&el.value.trim()){const p=parseQuick(el.value);const it=addQuick(el.value,{date:selDay});if(it&&!p.date)it.date=selDay;save();render();$('#dayAdd')?.focus()}
     else if(el.id==='bAdd'&&el.value.trim()){const a=el.dataset.area;const it=addQuick(el.value,{area:a});if(it){it.area=a;if(!it.stage)it.stage=defStage(a);save()}render();$('#bAdd')?.focus()}
     else if(el.id==='parkIn'&&el.value.trim()){addQuick(el.value);el.value='';say('Parked ✓ — it’s in your Inbox');render();$('#parkIn')?.focus()}
@@ -827,14 +828,21 @@ const clUI=()=>E.checklist?`<div class="card" style="margin-top:10px;padding:10p
 const tmin=t=>{const[h,m]=t.split(':').map(Number);return h*60+m},mtime=m=>pad(Math.floor(m/60))+':'+pad(m%60);
 const SLOT_DAY=[9*60,21*60],SLOT_BUF=15,SLOT_PERDAY=3;let AS=null;
 function planSlots(items,days=10){const out=[],used={},cnt={},now=new Date();
- for(const it of items){const dur=it.area==='jobs'?45:60;let placed=null;
-  for(let d=0;d<days&&!placed;d++){const ds=iso(addDays(now,d));if((cnt[ds]||0)>=SLOT_PERDAY)continue;
+ for(const it of items){const dur=it._dur||(it.area==='jobs'?45:60);let placed=null;
+  for(let d=0;d<days&&!placed;d++){const ds=iso(addDays(now,d));if(cnt[ds]===undefined)cnt[ds]=itemsOn(ds).filter(x=>x.tentative&&x.time&&!x.done).length;if(cnt[ds]>=SLOT_PERDAY)continue;
    const busy=itemsOn(ds).filter(x=>x.time&&!x.done).map(x=>{const a=tmin(x.time),b=x.endTime?tmin(x.endTime):a+60;return[a-SLOT_BUF,Math.max(b,a+15)+SLOT_BUF]}).concat(used[ds]||[]).sort((a,b)=>a[0]-b[0]);
    let cur=SLOT_DAY[0];if(d===0)cur=Math.max(cur,Math.ceil((now.getHours()*60+now.getMinutes()+15)/15)*15);
    for(const[bs,be] of busy){if(bs-cur>=dur)break;cur=Math.max(cur,be)}
    if(cur+dur<=SLOT_DAY[1]){placed={date:ds,time:mtime(cur),endTime:mtime(cur+dur)};(used[ds]=used[ds]||[]).push([cur-SLOT_BUF,cur+dur+SLOT_BUF]);cnt[ds]=(cnt[ds]||0)+1}}
   out.push({it,p:placed})}
  return out}
+
+/* new task with no date: pencil it into the best free gap (today, or the next 7 days) */
+function autoPlace(it){const mode=S.settings.autoSlot||'week';if(mode==='off'||it.date||it.time||it.repeat||it.stage||it.area!=='life'||it.tentative)return null;
+ const m=it.title.match(/\bfor\s+(\d+(?:\.\d+)?)\s?(m|min|mins|h|hr|hrs)\b/i);if(m){const v=parseFloat(m[1]);it._dur=Math.max(10,Math.round(/^h/i.test(m[2])?v*60:v))}
+ const days=mode==='today'?1:7,r=planSlots([it],days)[0];delete it._dur;
+ if(!r.p)return{none:days};const dur=m?Math.max(10,Math.round(/^h/i.test(m[2])?parseFloat(m[1])*60:parseFloat(m[1]))):null;
+ const t=tmin(r.p.time),e=dur?t+dur:tmin(r.p.endTime);Object.assign(it,{date:r.p.date,time:r.p.time,endTime:mtime(e),tentative:true,remind:S.settings.remindDefault||10});return{p:{date:it.date,time:it.time,endTime:it.endTime}}}
 function openAutoSlot(){const inb=inboxItems().filter(i=>!i.repeat);if(!inb.length){say('Inbox is empty — nothing to slot');return}AS=planSlots(inb);drawAuto()}
 function drawAuto(){const ok=AS.filter(x=>x.p),no=AS.filter(x=>!x.p);
  $('#modal').innerHTML=`<div class="mcard"><h3>✨ Auto-slot</h3><p class="mut" style="margin:0 0 10px;font-size:13px">I looked at your week and found gaps (9am–9pm, 15 min clear of anything else, max ${SLOT_PERDAY} a day). Nothing is final: these are <b>pencilled in</b> until you confirm each one.</p>

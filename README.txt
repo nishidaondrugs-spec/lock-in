@@ -72,3 +72,9 @@ PHONE + ONLINE SYNC (v2.7)
 PHONE LAYOUT (v2.8)
 - On a phone: bottom tab bar (Today, Calendar, Inbox, Notes, More), a "More" sheet (Content, Jobs, Focus, Settings), a compact Today page (Next up and Your 3 first), bigger tap targets, pop-ups as bottom sheets, toasts above the tab bar.
 - Tap the "Synced" label to refresh. Dragging blocks on the timeline is off on touch so scrolling works; tap a block to edit its time.
+
+AUTO-PLACE NEW TASKS (v2.9)
+- Add a task with no date (top bar) and Lock In pencils it into the earliest free gap: 9am-9pm, 15 min clear of anything else, max 3 pencilled a day. Today first, then the next 7 days.
+- Add "for 30m" or "for 2h" to the title to set how long it takes (default 60 min; jobs 45).
+- It's only pencilled in, so move or confirm it. Dated items, #jobs / #content items, repeats and "?" items are left alone.
+- Settings: "New task with no date": best time in 7 days / today only / leave in Inbox.
