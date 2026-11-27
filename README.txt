@@ -68,3 +68,7 @@ PHONE + ONLINE SYNC (v2.7)
 - Edit on either: the other picks it up within a few seconds. If one is offline it keeps your changes and syncs when it's back.
 - The phone version has the calendar, Inbox, Content, Jobs, Notes and Focus (no Arena game, no laptop-only buttons).
 - Reminders on the phone only pop up while the app is open; use the laptop or your phone's calendar for alerts.
+
+PHONE LAYOUT (v2.8)
+- On a phone: bottom tab bar (Today, Calendar, Inbox, Notes, More), a "More" sheet (Content, Jobs, Focus, Settings), a compact Today page (Next up and Your 3 first), bigger tap targets, pop-ups as bottom sheets, toasts above the tab bar.
+- Tap the "Synced" label to refresh. Dragging blocks on the timeline is off on touch so scrolling works; tap a block to edit its time.
