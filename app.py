@@ -2,7 +2,7 @@
 Runs a tiny local server (stdlib only) and opens it in an app-style window.
 Data lives in data/store.json (a backup of the previous save is kept as store.bak.json).
 """
-import json, os, sys, threading, time, subprocess, webbrowser, shutil, io, zipfile, urllib.request, secrets, uuid
+import json, os, re, sys, threading, time, subprocess, webbrowser, shutil, io, zipfile, urllib.request, secrets, uuid
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timedelta
 
@@ -392,6 +392,15 @@ class H(BaseHTTPRequestHandler):
             last_ping = time.time()
             with LOCK:
                 return self._send(200, load())
+        if p == '/api/cloud':   # the online-sync key (stored only on this computer, never in the repo)
+            if self.headers.get('X-LockIn') != '1':
+                return self._send(403, {'error': 'forbidden'})
+            try:
+                with open(os.path.join(DATA, 'cloud.json'), encoding='utf-8') as f:
+                    c = json.load(f)
+            except Exception:
+                c = {}
+            return self._send(200, {'token': str(c.get('token') or '')})
         if p == '/api/queue':
             if self.headers.get('X-LockIn') != '1':
                 return self._send(403, {'error': 'forbidden'})
@@ -498,6 +507,19 @@ class H(BaseHTTPRequestHandler):
             if time.time() - last_ping > 30:   # window is closed -> open it so the command gets applied
                 threading.Thread(target=open_window, daemon=True).start()
             return self._send(200, {'qid': body['qid']})
+        if self.path.split('?')[0] == '/api/cloud':
+            if self.headers.get('X-LockIn') != '1':
+                return self._send(403, {'error': 'forbidden'})
+            try:
+                n = int(self.headers.get('Content-Length', '0'))
+                tok = str(json.loads(self.rfile.read(n).decode('utf-8') or '{}').get('token') or '').strip()
+            except Exception:
+                tok = ''
+            if tok and not re.fullmatch(r'[A-Za-z0-9_-]{20,100}', tok):
+                return self._send(400, {'ok': False, 'error': 'That key does not look right.'})
+            with open(os.path.join(DATA, 'cloud.json'), 'w', encoding='utf-8') as f:
+                json.dump({'token': tok}, f)
+            return self._send(200, {'ok': True})
         if self.path.split('?')[0] == '/api/open':   # open the EP Studio path saved in Settings (never an arbitrary path)
             if self.headers.get('X-LockIn') != '1':
                 return self._send(403, {'error': 'forbidden'})

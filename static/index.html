@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Lock In</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Lock In"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="theme-color" content="#0a0a14">
 <style>
 :root{--bg:#0a0a14;--card:rgba(255,255,255,.045);--card2:rgba(255,255,255,.075);--line:rgba(255,255,255,.09);--txt:#ecebf5;--mut:#8f8da8;--acc:#8b7cf6;--acc2:#5b8cff;--content:#c084fc;--jobs:#38bdf8;--life:#4ade80;--warn:#fbbf24;--bad:#f87171;--r:14px}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -166,6 +167,27 @@ select option{background:#15142a}
 @keyframes up{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
 .flame{font-size:30px}
 @media(max-width:1180px){.tgrid,.cal{grid-template-columns:1fr}}
+/* ---------- phone / narrow screens ---------- */
+html.phone #arena,html.phone .lo{display:none!important}
+@media(max-width:760px){
+ body{grid-template-columns:1fr;grid-template-rows:auto 1fr auto;height:100dvh}
+ #side{grid-row:3;grid-column:1;flex-direction:row;padding:6px 6px calc(6px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid var(--line);overflow-x:auto;gap:2px}
+ #side .logo,#mini,#clock,#side .sp{display:none}
+ .nav{width:auto;flex:none;padding:9px 11px;font-size:12px;white-space:nowrap}
+ .nav.on{box-shadow:inset 0 -2px 0 var(--acc)}
+ #top{grid-column:1;grid-row:1;padding:calc(10px + env(safe-area-inset-top)) 12px 4px}
+ #cap{padding-left:12px}#cap kbd{display:none}
+ #main{grid-column:1;grid-row:2;padding:8px 12px 16px}
+ #arena{display:none}
+ .notes{grid-template-columns:1fr}
+ .tgrid,.cal{grid-template-columns:minmax(0,1fr)!important;height:auto}
+ .tgrid>*,.cal>*{min-width:0}
+ #main{overflow-x:hidden}
+ .f{grid-template-columns:1fr}
+ .mcard{width:calc(100vw - 20px)!important;max-width:none!important;max-height:92dvh;overflow:auto}
+ .board{grid-template-columns:1fr!important}
+ input,select,textarea{font-size:16px}
+}
 </style></head>
 <body>
 <nav id="side">
@@ -223,10 +245,22 @@ const defStage=a=>a==='content'?'idea':a==='jobs'?'saved':null;
 const mk=p=>Object.assign({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),title:'',notes:'',area:'life',date:null,time:null,tentative:false,done:false,remind:null,stage:null,link:'',company:'',created:Date.now()},p,{stage:p.stage!==undefined?p.stage:defStage(p.area||'life')});
 
 /* ---------- persistence ---------- */
+/* ---------- storage: this laptop and/or the online copy (so the phone and laptop stay in sync) ---------- */
+const LOCAL=/^(127\.0\.0\.1|localhost)$/.test(location.hostname);
+const PHONE_URL='https://nishidaondrugs-spec.github.io/lock-in/phone/';
+const CLOUD_URL='https://aitrauriezphqtpraqoc.supabase.co/functions/v1/lockin-api';
+let CL=null,_cdirty=false;
+if(!LOCAL){document.documentElement.classList.add('phone');const l=document.createElement('link');l.rel='manifest';l.href='manifest.json';document.head.appendChild(l);const a=document.createElement('link');a.rel='apple-touch-icon';a.href='icon.png';document.head.appendChild(a)}
+const cf=(p,init={})=>fetch(CLOUD_URL+p,Object.assign({},init,{headers:Object.assign({'X-Lock-Token':CL.token},init.headers||{})}));
+const stGet=()=>CL?cf('/state').then(r=>{if(!r.ok)throw new Error('cloud '+r.status);return r.json()}):fetch('/api/state').then(r=>r.json());
+const stRev=()=>CL?cf('/rev').then(r=>{if(!r.ok)throw new Error('cloud '+r.status);return r.json()}):fetch('/api/rev').then(r=>r.json());
+const stPut=body=>CL?cf('/state',{method:'PUT',headers:{'Content-Type':'application/json'},body}):fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body});
+/* keep a local copy: the laptop's own store, or this phone's cache (so it opens offline and nothing is lost) */
+function mirror(dirty){if(!CL||!S)return;if(LOCAL)fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({},S,{_rev:undefined,_crev:S._rev,_dirty:!!dirty}))}).catch(()=>{});else try{localStorage.setItem('lockin_cache',JSON.stringify({s:S,dirty:!!dirty}))}catch(e){}}
 let st;
 let SAVING=0,SEQ=0,SNAP=new Map(),NSNAP=new Map(),_adopting=false;
 const snapOf=items=>new Map((items||[]).map(i=>[i.id,JSON.stringify(i)]));
-function save(){clearTimeout(st);SAVING=1;const my=++SEQ;$('#saved').textContent='Saving…';st=setTimeout(()=>{const snapNow=snapOf(S.items),nsnapNow=snapOf(S.notes);fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(S)}).then(r=>r.json().then(j=>({c:r.status,j}))).then(({c,j})=>{if(my===SEQ)SAVING=0;if(c===409){adoptServer(j.state,true);return}if(j.fired)Object.assign(S.fired,j.fired);if(typeof j.rev==='number')S._rev=j.rev;SNAP=snapNow;NSNAP=nsnapNow;$('#saved').textContent='Saved ✓'}).catch(()=>{if(my===SEQ)SAVING=0;$('#saved').textContent='⚠ not saved';say('Could not save — is the Lock In server running?')})},250)}
+function save(){clearTimeout(st);SAVING=1;const my=++SEQ;$('#saved').textContent='Saving…';st=setTimeout(()=>{const snapNow=snapOf(S.items),nsnapNow=snapOf(S.notes);stPut(JSON.stringify(S)).then(r=>r.json().then(j=>({c:r.status,j}))).then(({c,j})=>{if(my===SEQ)SAVING=0;if(c===409){adoptServer(j.state,true);return}if(c===401){$('#saved').textContent='⚠ key rejected';say('The online sync key was rejected — check it in Settings.');return}if(c>=400)throw new Error('save '+c);if(j.fired)Object.assign(S.fired,j.fired);if(typeof j.rev==='number')S._rev=j.rev;SNAP=snapNow;NSNAP=nsnapNow;_cdirty=false;mirror(false);$('#saved').textContent=CL?'Synced ✓':'Saved ✓'}).catch(()=>{if(my===SEQ)SAVING=0;if(CL){_cdirty=true;mirror(true);$('#saved').textContent='Saved here — will sync when online'}else{$('#saved').textContent='⚠ not saved';say('Could not save — is the Lock In server running?')}})},250)}
 /* another window / Claude changed your plan -> pick it up instead of overwriting it (3-way merge per item) */
 function mergeBy(local,srv,snap){const loc=new Map(local.map(i=>[i.id,i])),out=[],seen=new Set();
  for(const si of srv){seen.add(si.id);const li=loc.get(si.id);
@@ -241,7 +275,21 @@ function adoptServer(sv,conflict){if(!sv||!Array.isArray(sv.items))return;
  S.items=merged;S.notes=mergedN;S.settings=Object.assign({},sv.settings,{arenaOpen:(S.settings||{}).arenaOpen});S.top3=sv.top3||S.top3;S.days=sv.days||S.days;S.fired=Object.assign({},sv.fired||{},S.fired||{});S._rev=sv._rev||0;
  const base=snapOf(sv.items);let dirty=!!conflict;for(const i of merged)if(base.get(i.id)!==JSON.stringify(i))dirty=true;if(merged.length!==sv.items.length)dirty=true;const nbase=snapOf(sv.notes||[]);for(const i of mergedN)if(nbase.get(i.id)!==JSON.stringify(i))dirty=true;if(mergedN.length!==(sv.notes||[]).length)dirty=true;
  SNAP=base;NSNAP=nbase;softRender(0);if(dirty)save()}
-function pollRev(){if(SAVING||_adopting||!S)return;fetch('/api/rev').then(r=>r.json()).then(j=>{if(typeof j.rev==='number'&&j.rev!==(S._rev||0)&&!SAVING){_adopting=true;fetch('/api/state').then(r=>r.json()).then(sv=>{if(!SAVING)adoptServer(sv,false);_adopting=false}).catch(()=>{_adopting=false})}}).catch(()=>{})}
+function pollRev(){if(SAVING||_adopting||!S)return;stRev().then(j=>{if(_cdirty&&!SAVING){_cdirty=false;save();return}if(typeof j.rev==='number'&&j.rev!==(S._rev||0)&&!SAVING){_adopting=true;stGet().then(sv=>{if(!SAVING){adoptServer(sv,false);mirror(false)}_adopting=false}).catch(()=>{_adopting=false})}}).catch(()=>{})}
+/* load: cloud is the source of truth once a key is set; falls back to this device's copy when offline */
+async function loadState(){let loc=null;
+ if(LOCAL){loc=await fetch('/api/state').then(r=>r.json());try{const c=await fetch('/api/cloud',{headers:{'X-LockIn':'1'}}).then(r=>r.json());if(c&&c.token)CL={token:c.token}}catch(e){}}
+ else{let t=null;const m=location.hash.match(/[#&]t=([A-Za-z0-9_-]+)/);try{if(m){t=m[1];localStorage.setItem('lockin_key',t)}else t=localStorage.getItem('lockin_key')}catch(e){if(m)t=m[1]}
+  if(!t)return{need:'key'};CL={token:t};try{const c=JSON.parse(localStorage.getItem('lockin_cache')||'null');if(c&&c.s)loc=Object.assign({},c.s,{_dirty:c.dirty})}catch(e){}}
+ if(!CL)return{s:loc};
+ let cv=null;try{cv=await stGet()}catch(e){if(/401/.test(e.message||'')){if(!LOCAL)try{localStorage.removeItem('lockin_key')}catch(x){}return{need:'badkey'}}}
+ if(!cv)return loc?{s:loc,offline:true}:{need:'retry'};
+ if(!Array.isArray(cv.items)){if(loc){loc._rev=cv._rev||0;return{s:loc,seed:true}}return{need:'empty'}}
+ if(loc&&loc._dirty){loc._rev=cv._rev||0;return{s:loc,merge:cv}}
+ return{s:cv}}
+function needScreen(w){const m={key:['Paste your Lock In key','<input id="nk" type="text" placeholder="key" autocomplete="off" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card);margin:12px 0"><button class="btn pri" id="nkb">Connect</button><p class="mut" style="margin-top:14px;font-size:12px">Easier: open the phone link from Lock In on your laptop (Settings → Phone link).</p>'],badkey:['That key didn’t work','Open the phone link again from Lock In on your laptop (Settings → Phone link), or paste the key here.<br><br><button class="btn pri" onclick="location.href=location.pathname">Enter key</button>'],retry:['Can’t reach your plan','Check your signal, then try again.<br><br><button class="btn pri" onclick="location.reload()">Try again</button>'],empty:['Nothing online yet','Open Lock In on your laptop (v2.7) once so it uploads your plan, then come back here.<br><br><button class="btn pri" onclick="location.reload()">Try again</button>']}[w];
+ document.body.innerHTML='<div style="grid-column:1/-1;padding:calc(40px + env(safe-area-inset-top)) 22px;max-width:480px;margin:auto"><h2 style="margin-bottom:8px">⚡ '+m[0]+'</h2><div class="mut">'+m[1]+'</div></div>';
+ const b=document.getElementById('nkb');if(b)b.onclick=()=>{const v=document.getElementById('nk').value.trim();if(!/^[A-Za-z0-9_-]{20,100}$/.test(v)){document.getElementById('nk').style.borderColor='var(--bad)';return}try{localStorage.setItem('lockin_key',v)}catch(e){}location.reload()}}
 function say(t){$$('#toasts .quiet').forEach(x=>x.remove());const d=document.createElement('div');d.className='toast quiet';d.textContent=t;$('#toasts').appendChild(d);setTimeout(()=>d.remove(),3200)}
 
 /* ---------- quick-add parser ---------- */
@@ -493,15 +541,17 @@ function openSettings(){const s=S.settings;
   $('#modal').innerHTML=`<div class="mcard"><h3>Settings</h3><div class="f"><label>Your name<input type="text" id="s_name" value="${esc(s.name)}"></label><label>Weekly job applications goal<input type="number" id="s_goal" value="${s.jobGoal}"></label>
   <label>Focus minutes<input type="number" id="s_focus" value="${s.focusMin}"></label><label>Break minutes<input type="number" id="s_break" value="${s.breakMin}"></label>
   <label>Default reminder (min before, timed items)<input type="number" id="s_rem" value="${s.remindDefault}"></label></div>
-  <label class="chk"><input type="checkbox" id="s_wake" ${s.openOnWake?'checked':''}> Pop open when I wake the laptop</label>
+  <label class="chk lo"><input type="checkbox" id="s_wake" ${s.openOnWake?'checked':''}> Pop open when I wake the laptop</label>
   <div class="f" style="grid-template-columns:1fr"><label>Job searches (one per line: role | place)<textarea id="s_jobs" rows="4">${esc((s.jobSearches||[]).map(x=>x.q+' | '+x.l).join('\n'))}</textarea></label></div>
-  <div class="f" style="grid-template-columns:1fr"><label>Update address (optional — where new versions are published)<input type="text" id="s_upd" value="${esc(s.updateUrl||'')}" placeholder="https://raw.githubusercontent.com/you/lock-in/main"></label></div>
+  <div class="f lo" style="grid-template-columns:1fr"><label>Update address (optional — where new versions are published)<input type="text" id="s_upd" value="${esc(s.updateUrl||'')}" placeholder="https://raw.githubusercontent.com/you/lock-in/main"></label></div>
   <div class="f"><label>Reels per week goal<input type="number" id="s_reel" value="${s.reelGoal||6}"></label><label>Next episode number<input type="number" id="s_ep" value="${s.epNext||21}"></label></div>
   <div class="f"><label>Gym sessions per week goal<input type="number" id="s_gymgoal" value="${s.gymGoal||4}"></label><label>VERTFORM web address<input type="text" id="s_gymurl" value="${esc(s.gymUrl||'')}" placeholder="https://..."></label></div>
-  <div class="f" style="grid-template-columns:1fr"><label>EP Studio — web address or file path on this computer<input type="text" id="s_epstudio" value="${esc(s.epStudio||'')}" placeholder="http://127.0.0.1:5055  or  C:\\Users\\you\\EP_Studio\\index.html"></label></div>
-  <label class="chk"><input type="checkbox" id="s_auto" ${s.autoUpdate!==false?'checked':''}> Install updates automatically (your data is never touched)</label>
-  <div class="mbtn" style="margin:0 0 4px"><button class="btn" data-act="checkupdate">Check for updates</button><label class="btn" style="cursor:pointer">⬆ Restore a backup<input type="file" id="s_imp" accept=".json" data-chg="import" style="display:none"></label><span class="mut" id="verline" style="align-self:center;font-size:12px"></span></div>
-  <div class="mbtn"><button class="btn pri" data-act="saveSettings">Save</button><button class="btn" data-act="closeModal">Cancel</button><a class="btn" href="/api/export" download>⬇ Backup</a><span style="flex:1"></span><button class="btn bad" data-act="quit">Quit Lock In</button></div>
+  <div class="f lo" style="grid-template-columns:1fr"><label>EP Studio — web address or file path on this computer<input type="text" id="s_epstudio" value="${esc(s.epStudio||'')}" placeholder="http://127.0.0.1:5055  or  C:\\Users\\you\\EP_Studio\\index.html"></label></div>
+  <label class="chk lo"><input type="checkbox" id="s_auto" ${s.autoUpdate!==false?'checked':''}> Install updates automatically (your data is never touched)</label>
+  <div class="mbtn lo" style="margin:0 0 4px"><button class="btn" data-act="checkupdate">Check for updates</button><label class="btn" style="cursor:pointer">⬆ Restore a backup<input type="file" id="s_imp" accept=".json" data-chg="import" style="display:none"></label><span class="mut" id="verline" style="align-self:center;font-size:12px"></span></div>
+  <div class="f lo" style="grid-template-columns:1fr"><label>📱 Online sync key — lets your phone and laptop share one plan<input type="text" id="s_ckey" value="${esc(CL?CL.token:'')}" placeholder="paste the key here"></label></div>
+  <div class="mbtn lo" style="margin:0 0 4px"><button class="btn" data-act="cloudsave">Save key</button><button class="btn" data-act="phonelink">📱 Phone link</button><span class="mut" style="align-self:center;font-size:12px">${CL?'Connected ✓':'Not connected'}</span></div>
+  <div class="mbtn"><button class="btn pri" data-act="saveSettings">Save</button><button class="btn" data-act="closeModal">Cancel</button><a class="btn lo" href="/api/export" download>⬇ Backup</a><span style="flex:1"></span><button class="btn bad lo" data-act="quit">Quit Lock In</button></div>
   <p class="mut" style="font-size:12px;margin-top:12px">Shortcuts: N capture · 1–6 switch view · T today · ←/→ month · Esc close. Quick-add: “fri 3pm call X #jobs r30” (r30 = remind 30 min before). End with ? to pencil it in.</p></div>`;$('#modal').classList.add('on');fetch('/api/version').then(r=>r.json()).then(v=>{const e=$('#verline');if(e)e.textContent='v'+v.version+' · data: '+v.data}).catch(()=>{})}
 function welcome(){$('#modal').innerHTML=`<div class="mcard"><h3>Welcome to Lock In ⚡</h3>
   <p style="margin-bottom:10px"><b>1 · Drop it.</b> Press <kbd>N</kbd>, type anything, hit Enter. No date → it waits in your Inbox.</p>
@@ -545,6 +595,8 @@ const ACT={
  addcl:()=>{collect();E.checklist=EP_STEPS.map(t=>({t,d:false}));drawEdit()},
  newgym:()=>{const it=mk({title:'Gym',area:'life',emoji:'🏋️',date:iso(new Date()),remind:S.settings.remindDefault||10,link:(S.settings.gymUrl||'').trim()});S.items.push(it);save();render();openEdit(byId(it.id))},
  opengym:()=>{const p=(S.settings.gymUrl||'').trim();if(!p){ACT.settings();return}window.open(/^https?:\/\//i.test(p)?p:'https://'+p,'_blank')},
+ cloudsave:()=>{const v=($('#s_ckey').value||'').trim();fetch('/api/cloud',{method:'POST',headers:{'X-LockIn':'1'},body:JSON.stringify({token:v})}).then(r=>r.json()).then(j=>{if(j.ok){say(v?'Key saved — connecting…':'Online sync turned off');setTimeout(()=>location.reload(),700)}else say(j.error||'Could not save the key')}).catch(()=>say('Could not save the key'))},
+ phonelink:()=>{if(!CL){say('Add the sync key first');return}const link=PHONE_URL+'#t='+CL.token;try{navigator.clipboard.writeText(link)}catch(e){}$('#modal').innerHTML=`<div class="mcard"><h3>📱 Lock In on your phone</h3><p class="mut" style="font-size:13px;margin:0 0 10px">Open this link on your iPhone in Safari, then Share → Add to Home Screen. It’s private to you: the key is in the link, so don’t share it.</p><input type="text" readonly value="${esc(link)}" onfocus="this.select()" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card)"><p class="mut" style="font-size:12px;margin-top:8px">Copied to your clipboard.</p><div class="mbtn"><button class="btn" data-act="closeModal">Close</button></div></div>`;$('#modal').classList.add('on')},
  openep:()=>{const p=(S.settings.epStudio||'').trim();if(!p){ACT.settings();return}if(/^https?:\/\//i.test(p)){window.open(p,'_blank');return}fetch('/api/open',{method:'POST',headers:{'X-LockIn':'1'}}).then(r=>r.json()).then(j=>say(j.ok?'Opening EP Studio…':(j.error||'Could not open it'))).catch(()=>say('Could not reach Lock In'))},
  asskip:(el)=>{AS=AS.filter(x=>x.it.id!==el.dataset.id);drawAuto()},
  asapply:()=>{let n=0;for(const x of AS){if(!x.p)continue;const i=byId(x.it.id);if(!i)continue;Object.assign(i,{date:x.p.date,time:x.p.time,endTime:x.p.endTime,tentative:true});if(i.remind==null)i.remind=S.settings.remindDefault;n++}AS=null;save();closeModal();render();say(n+' pencilled in — confirm the ones you want')},
@@ -807,12 +859,13 @@ function pollQueue(){if(_qBusy||!S)return;_qBusy=true;fetch('/api/queue',{header
   setTimeout(()=>fetch('/api/queue/ack',{method:'POST',headers:{'Content-Type':'application/json','X-LockIn':'1'},body:JSON.stringify({results})}).then(()=>{_qBusy=false;if(changed){softRender(0);say('Claude updated your plan')}}).catch(()=>{_qBusy=false}),500)}).catch(()=>{_qBusy=false})}
 /* ---------- boot ---------- */
 function tickClock(){const d=new Date();$('#clock').textContent=DOW3[(d.getDay()+6)%7]+' '+pad(d.getHours())+':'+pad(d.getMinutes());const nl=$('#nowl'),tlx=$('.tl');if(nl&&tlx)nl.style.top=((d.getHours()*60+d.getMinutes()-(+tlx.dataset.lo))/60*PPH)+'px';const b=$('#bigclock');if(b)b.textContent=pad(d.getHours())+':'+pad(d.getMinutes())}
-fetch('/api/state').then(r=>r.json()).then(j=>{S=j;S._rev=S._rev||0;if(S.settings&&S.settings.epStudio===undefined)S.settings.epStudio='http://127.0.0.1:5055';S.notes=S.notes||[];SNAP=snapOf(S.items);NSNAP=snapOf(S.notes);S.fired=S.fired||{};S.days=S.days||{};S.top3=S.top3||{date:'',ids:[]};initF();render();tickClock();checkReminders();
-  setInterval(tickClock,15000);setInterval(checkReminders,15000);setInterval(pollQueue,3000);pollQueue();setInterval(pollRev,3000);let pingOk=true;setInterval(()=>fetch('/api/ping').then(()=>{if(!pingOk)location.reload();pingOk=true}).catch(()=>{pingOk=false}),10000);
+loadState().then(res=>{if(res.need){needScreen(res.need);return}const j=res.s;delete j._crev;delete j._dirty;S=j;S._rev=S._rev||0;if(S.settings&&S.settings.epStudio===undefined)S.settings.epStudio='http://127.0.0.1:5055';S.notes=S.notes||[];SNAP=snapOf(S.items);NSNAP=snapOf(S.notes);S.fired=S.fired||{};S.days=S.days||{};S.top3=S.top3||{date:'',ids:[]};initF();render();tickClock();checkReminders();
+  setInterval(tickClock,15000);setInterval(checkReminders,15000);if(LOCAL){setInterval(pollQueue,3000);pollQueue();let pingOk=true;setInterval(()=>fetch('/api/ping').then(()=>{if(!pingOk)location.reload();pingOk=true}).catch(()=>{pingOk=false}),10000)}setInterval(pollRev,3000);if(!LOCAL)document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollRev()});
+  if(res.seed)save();else if(res.merge){SNAP=new Map();NSNAP=new Map();adoptServer(res.merge,true)}else if(res.offline){_cdirty=true;SNAP=new Map();NSNAP=new Map()}else if(CL)mirror(false);
   setInterval(()=>{if(F.running){const l=Math.round((F.end-Date.now())/1000);F.left=Math.max(0,l);if(l<=0)fDone();else paint()}},500);
   requestAnimationFrame(arenaFrame);
   $('#arenac').addEventListener('click',e=>{const t=e.target,r=t.getBoundingClientRect(),cx=(e.clientX-r.left)*(t.width/r.width);if(gs().wild&&cx>t.width-170)catchWild()});
   if(!gs().dexInit){gs().dexInit=1;encounter('task')}
   if(!S.settings.welcomed&&!S.items.length)welcome();
-}).catch(()=>{document.body.innerHTML='<div style="padding:40px">Lock In server isn’t running. Double-click run.bat.</div>'});
+}).catch(()=>{if(LOCAL)document.body.innerHTML='<div style="padding:40px">Lock In server isn’t running. Double-click run.bat.</div>';else needScreen('retry')});
 </script></body></html>

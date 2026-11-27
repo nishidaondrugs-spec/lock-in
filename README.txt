@@ -61,3 +61,10 @@ GYM + VERTFORM (v2.6)
 - Today > Momentum card: "Gym this week n/goal", "+ Gym session" (makes a Gym item you can time and remind) and "Open VERTFORM".
 - Anything with gym, lift or workout in the title counts when you tick it done (repeating ones count per day).
 - Settings: gym sessions per week goal, and your VERTFORM web address.
+
+PHONE + ONLINE SYNC (v2.7)
+- Lock In now keeps an online copy of your plan (a private store only your key can open) so your laptop and iPhone share it.
+- Settings > "Online sync key": paste the key, Save. "Phone link" gives you the link to open on your iPhone (Safari > Share > Add to Home Screen).
+- Edit on either: the other picks it up within a few seconds. If one is offline it keeps your changes and syncs when it's back.
+- The phone version has the calendar, Inbox, Content, Jobs, Notes and Focus (no Arena game, no laptop-only buttons).
+- Reminders on the phone only pop up while the app is open; use the laptop or your phone's calendar for alerts.
